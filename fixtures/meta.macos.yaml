@@ -1,0 +1,22 @@
+---
+author: |
+  Denis de Bernardy \email{ddebernardy@proton.me}
+documentclass: 'extarticle'
+classoption: 12pt
+geometry: 'margin=1.25in'
+mainfont: Palatino
+mainfontfallback:
+  - "Apple Symbols:mode=harf"
+monofont: Menlo
+monofontfallback:
+  - "Julia Mono:mode=harf"
+  - "Devanagari MT:mode=harf"
+  - "Hiragino Sans GB W3:mode=harf"
+  - "Apple SD Gothic Neo:mode=harf"
+  - "Apple Symbols:mode=harf"
+  - "Geeza Pro:mode=harf"
+numbersections: false
+bibliography: p2pledgers.bib
+csl: p2pledgers.csl
+link-citations: true
+---

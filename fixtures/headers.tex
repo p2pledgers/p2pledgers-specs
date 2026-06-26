@@ -1,0 +1,44 @@
+\usepackage{titlesec}
+\titleformat*{\section}{\LARGE\bfseries}
+\titleformat*{\subsection}{\Large\bfseries}
+\titleformat*{\subsubsection}{\large\bfseries}
+
+\makeatletter
+\renewcommand{\author}[1]{\gdef\@author{\normalsize #1}}
+\makeatother
+
+\newcommand{\email}[1]{\texttt{<\href{mailto:#1}{#1}>}}
+
+\makeatletter
+\renewcommand{\date}[1]{\gdef\@date{\normalsize #1}}
+\makeatother
+
+\usepackage{epigraph}
+\setlength{\epigraphwidth}{0.6\textwidth}
+\setlength{\epigraphrule}{0pt}
+
+\usepackage{abstract}
+\setlength{\absleftindent}{0.25in}
+\setlength{\absrightindent}{0.25in}
+
+\renewcommand{\abstractnamefont}{\normalfont\large\bfseries\centering\abstractname}
+
+\renewenvironment{abstract}{%
+  \normalsize
+  \begin{center}
+  \vspace{1em}
+  \abstractnamefont\par\vspace{0.5em}
+  \end{center}
+  \begin{list}{}{%
+    \setlength{\rightmargin}{0.25in}%
+    \setlength{\leftmargin}{0.25in}%
+    \setlength{\itemindent}{0pt}%
+    \setlength{\listparindent}{\parindent}%
+    \setlength{\rightskip}{0pt plus 1fil}%
+    \setlength{\parsep}{\parskip}%
+    \setlength{\topsep}{0pt}%
+  }%
+  \item[]\relax
+}{%
+  \end{list}
+}
