@@ -249,7 +249,7 @@ This transaction history is not intended to synchronize hashes much less full lo
 
 Rather, it is an append-only record of locally timestamped events that arrive asynchronously on disparate devices whose clocks are likely out of sync and possibly tampered with. Anyone using this as forensic evidence SHOULD assume timestamps in this log are dubious. Events could get logged long after they've been sent, so not even local timestamps can be trusted, and no assumption can be made about the event order and hashes across replicas of the same ledger.
 
-What the log is intended to provide is a tamper-resistant record of the order in which _local_ events containing _non-local_ references (see References) get committed to the log. Put another way, ledgers exchange encrypted information about their state as they interact, and embed that information into their own future state. These entangled histories make rewriting a ledger's transaction history impossible without also rewriting that of nearby ledgers on the graph to cover it up.
+What the log is intended to provide is a tamper-resistant record of the order in which _local_ events containing _non-local_ references get committed to the log. Put another way, ledgers exchange encrypted information about their state as they interact, and embed that information into their own future state. These entangled histories make rewriting a ledger's transaction history impossible without also rewriting that of nearby ledgers on the graph to cover it up.
 
 This tamper-resistant evidence of consideration and intent makes transactions on this graph _far more_ enforceable than they'd be with a mere cryptographic signature, and the dispute resolution process (see Disputes) offers repudiation guarantees in case of private key misuse that a blockchain cannot match without Orwellian levels of control.
 
@@ -257,7 +257,7 @@ Fittingly, this tamper-resistance is socio-cryptographic rather than absolute. C
 
 These logs' most interesting property is the way they enable sequencing events without synchronized wall clocks, and defining topologies on the graph. This ties into spacetime and causal set theory, but that discussion will wait too. What matters for our sake is that this gives these logs strong forensic value. With this in mind:
 
-Apps MUST log every decision (manual or automated) related to transmissions in each affected ledger's transaction history (see Gossip, Trust, and Logging). The log entries MUST include every relevant ledger key and signature, the proof or repudiation or transaction contract and attachment CIDs, reference IDs (see References), and other receipts that could be needed in a dispute. The Logging section has the format details.
+Apps MUST log every decision (manual or automated) related to transmissions in each affected ledger's transaction history (see Gossip, Trust, and Logging). The log entries MUST include every relevant ledger key and signature, the proof or repudiation or transaction contract and attachment CIDs, docket IDs (see Docket IDs), and other receipts that could be needed in a dispute. The Logging section has the format details.
 
 Apps MUST log CIDs instead of contracts and attachment files to limit clutter, since a CID is enough to characterize these. Apps MUST store the relevant files and make them available for retrieval for a reasonable duration (see Gossip). A mobile app MAY defer to a main device it is kept in sync with for the parts.
 
@@ -273,9 +273,9 @@ Apps MAY purge the files related to stale (unfinalized) or archived (finalized) 
 Apps SHOULD warn end-users that purged data cannot be used in disputes when they first purge data or turn on automations to that effect.
 
 
-### References
+### Docket IDs
 
-Conceptually, transaction reference IDs (or references, for short) are exactly like the references used in bureaucratic communications---with the twist that the ID changes as ledgers interact.
+Conceptually, transaction docket IDs are exactly like the references used in bureaucratic communications---with the twist that the reference changes due to new docket IDs being generated as ledgers interact. Docket IDs are named after legal dockets, which are the courthouse equivalents of append-only logs.
 
 Apps MUST log a transaction's contract CID (see Contracts) before sharing any transaction, MUST use the commit hash of that log entry as that transaction's reference ID, and MUST add or update that ID in the transaction's envelope when gossiping it (see Envelopes and Gossip). This ensures a transaction's reference ID cannot be tampered with---a different transaction or the same one committed later would yield a different reference ID.
 

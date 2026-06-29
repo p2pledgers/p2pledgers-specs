@@ -5,7 +5,7 @@
 
 Conceptually, a transaction is a Ricardian contract [@Grigg2004]: plain-text legal prose interspersed with machine-parseable instructions that can refer to participants and attachments. This self-contained format echoes the real life expectation that a contract is its own manifest, and ensures transactions can be cryptographically locked as triple-entry bookkeeping records [@Grigg2005], without sacrificing machine- or human-readability.
 
-The contracts then get normalized, hashed, and enveloped in JSON before signing and sharing. This ensures they can be enriched with metadata such as references (see References), shared incrementally (see Gossip), and signed using existing cryptocurrency hardware if desired.
+The contracts then get normalized, hashed, and enveloped in JSON before signing and sharing. This ensures they can be enriched with metadata such as docket IDs (see Docket IDs), shared incrementally (see Gossip), and signed using existing cryptocurrency hardware if desired.
 
 
 ## Contract Format
@@ -33,7 +33,7 @@ Apps MUST NOT allow redlining finalized transactions, but SHOULD allow creating 
 
 Apps MUST amend the envelope of any contract they redline (see Envelopes):
 
-1. Process the references the contract came enveloped with normally.
+1. Process the docket IDs the contract came enveloped with normally.
 
 2. Discard the signatures enveloped with the contract's original version, since changing the contract's bytes will make them all invalid.
 
