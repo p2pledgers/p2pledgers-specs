@@ -5,7 +5,6 @@ subtitle: Money Of, By, and For the People---If You Can Keep It So
 date: \today
 abstract: |
   [TODO]
-abstract-title: Abstract
 reference-section-title: References
 ---
 
