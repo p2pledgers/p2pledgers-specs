@@ -42,27 +42,27 @@ These specifications use shortened IDs in examples for brevity and readability--
 
 Fingerprints are relationally salted tokens designed to identify payloads sent by known counterparties without revealing their ledger key to observers.
 
-Conceptually, fingerprints are like Truncated Key Identifiers, with the twists that the payload is based on the public key pair and the transmission channel that ledgers are interacting on instead of one key, and the hash algorithm is derived from the receiver's public key.
+Conceptually, fingerprints are like Truncated Key Identifiers, with the twists that the payload is based on the public key pair and the transmission channel that ledgers are interacting on instead of one key, and the hash algorithm is derived from the recipient's public key.
 
-To compute a receiver's fingerprint, a sender's app MUST compute:
+To compute a recipient's fingerprint, a sender's app MUST compute:
 
-    Hash(<ReceiverKey> || Hash(<SenderKey> || Hash(<ReceiverAddress>)))
+    Hash(<RecipientKey> || Hash(<SenderKey> || Hash(<RecipientAddress>)))
 
 Where:
 
-1. `<ReceiverKey>` and `<SenderKey>` are the receiver's and the sender's raw public key bytes without Multicodec prefixes.
+1. `<RecipientKey>` and `<SenderKey>` are the recipient's and the sender's raw public key bytes without Multicodec prefixes.
 
-2. `<ReceiverAddress>` means the receiver's address scheme and locator exactly like the receiver shared them with the sender, as raw UTF-8 bytes (in other words, preserve the case, and ignore address proof arguments; see Bootstrap Tokens and Address Proofs).
+2. `<RecipientAddress>` means the recipient's address scheme and locator exactly like the recipient shared them with the sender, as raw UTF-8 bytes (in other words, preserve the case, and ignore address proof arguments; see Bootstrap Tokens and Address Proofs).
 
 3. `||` means concatenating raw bytes as is.
 
-4. Hash is an algorithm derived from the receiver's public key (see below).
+4. Hash is an algorithm derived from the recipient's public key (see below).
 
 Apps MUST precompute, store, and index the first four bytes (leftmost) of all counterparty fingerprints for fast look-up. Four bytes are enough to guarantee that few if any collisions inside a set will exist, and allow an index layout optimization in database engines that offer Hash indexes.
 
 Apps with enough counterparties that collisions become a problem MAY store more bytes, but SHOULD NOT store the full fingerprint to not invite data breaches as a quick way to build a rainbow table.
 
-Fingerprints allow an encrypted payload's receiver to determine its sender without trying every public key until they find one that works (see Payload Format), and enable ledgers to ask each other about the creditworthiness of a ledger without revealing its identity to those who don't know it (see Trust). In both cases, a simple look-up reduces the search space to a set small enough (typically one candidate key, rarely more) that recomputing the hash of each candidate key is perfectly acceptable.
+Fingerprints allow an encrypted payload's recipient to determine its sender without trying every public key until they find one that works (see Payload Format), and enable ledgers to ask each other about the creditworthiness of a ledger without revealing its identity to those who don't know it (see Trust). In both cases, a simple look-up reduces the search space to a set small enough (typically one candidate key, rarely more) that recomputing the hash of each candidate key is perfectly acceptable.
 
 Apps MUST compute new fingerprints when they learn about new or rotated keys.
 
@@ -77,7 +77,7 @@ In the interest of setting a baseline: at the time of writing, apps MUST use Bla
 
 Apps MUST treat all channels as insecure for Gossip and Trust purposes---even HTTPS. TLS (RFC 8446) is the only practical option to create secure channels inside browsers, on corporate networks, or on captive portal WiFi networks. It provides strong security, but it uses centralized certificate authorities that could be compromised. Using EDHOC (RFC 9528) would make sense in the scenarios where it works, but the maintenance burden of offering it for those does not. Using TLS for other purposes (see Wall Clocks) is a necessary compromise.
 
-Apps MUST use HPKE (RFC 9180) to seal messages for the receiver's ledger key when transmitting Gossip and Trust payloads. Apps MUST use HPKE _Base Mode_ so receivers can always decrypt messages and senders don't leak information about themselves in transport headers. It ensures an ephemeral key gets generated for each message. Senders will get authenticated via their signature (see Gossip, Trust, and Envelopes). The HPKE `info` parameter MUST contain raw bytes of the receiver's ledger key so the payload is contextually bound to it.
+Apps MUST use HPKE (RFC 9180) to seal messages for the recipient's ledger key when transmitting Gossip and Trust payloads. Apps MUST use HPKE _Base Mode_ so recipients can always decrypt messages and senders don't leak information about themselves in transport headers. It ensures an ephemeral key gets generated for each message. Senders will get authenticated via their signature (see Gossip, Trust, and Envelopes). The HPKE `info` parameter MUST contain raw bytes of the recipient's ledger key so the payload is contextually bound to it.
 
 
 ### Payload Format
@@ -94,7 +94,7 @@ Apps MUST compress this CBOR map using raw DEFLATE (RFC 1951, without the ZLIB h
 
 Apps MUST encrypt this compressed payload using HPKE (see Secure Channels).
 
-Apps MUST wireframe this encrypted payload by adding the first 4 bytes of the sender's fingerprint for that transmission channel (see Fingerprints), so the payload's receiver can zero in on how to decrypt the payload without trying every key:
+Apps MUST wireframe this encrypted payload by adding the first 4 bytes of the sender's fingerprint for that transmission channel (see Fingerprints), so the payload's recipient can zero in on how to decrypt the payload without trying every key:
 
     [ 4-Byte Fingerprint ] [ HPKE Ciphertext ]
 
