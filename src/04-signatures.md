@@ -227,7 +227,7 @@ The four key technologies to be aware of are:
 
 - COSE (CBOR Object Signing and Encryption, RFC 9052)
 
-In short, JCS and CDDL help turn unsorted JSON into a sorted and more compact CBOR package that must then be wrapped in a COSE envelope so signing hardware can process it. But the transaction format in these specifications sidesteps JSON, so most of what you'll read about these topics will be irrelevant.
+In short, unsorted JSON gets turned into a sorted and more compact CBOR package that must then be wrapped in a COSE envelope so signing hardware can process it. But the transaction format in these specifications sidesteps JSON, so most of what you'll read about these topics will be irrelevant.
 
 In practice, signing hardware only needs to know what payload to sign and what key to use. Some accept an optional string for UI, but not all, and not always the same key. Apps should use the transaction title (see Transaction Titles), if any.
 
