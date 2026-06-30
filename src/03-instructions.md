@@ -319,7 +319,7 @@ Apps MUST support enumerating proof decorators after definitions. Proofs MUST be
 
 Proofs enable adding or removing public keys, addresses, and authorizations to identities, and enable signing attachments.
 
-Proof locators MAY be followed by up to two optional arguments, each separated by a dollar (`$`) sign. One is a date that enables controlling when the proof is valid. The other enables passing arguments during verifications (see Proof Verifications). Their formats are unequivocal, so they MAY be passed in either order, and either or both MAY be omitted:
+Proof locators MAY be followed by up to two optional arguments, each prepended by a dollar (`$`) sign. One is a date that enables controlling when the proof is valid. The other enables passing arguments during verifications (see Proof Verifications). Their formats are unequivocal, so they MAY be passed in either order, and either or both MAY be omitted:
 
     @! subject: object <scheme:locator$date$args>
 
