@@ -38,6 +38,15 @@ These self-describing formats [@Multiformats] ensure interoperability with web3 
 These specifications use shortened IDs in examples for brevity and readability---actual IDs would be longer.
 
 
+### Book IDs
+
+Book IDs allow identifying a specific ledger running on a specific device. They are anonymized `(device, ledger)` pairs named after traditional daybooks. Book IDs enable synchronizing ledgers between devices and hosting several ledgers on the same device without leaking information about these devices or ledgers.
+
+Apps MUST generate a collision-resistant ID for each ledger on a device. This ID MUST NOT be derivable from the device's hardware identifiers, secrets, or the ledger's public key.
+
+Apps SHOULD NOT allow regenerating book IDs. The tradeoff of keeping the book ID invariant is a minor metadata leak: over time, regular counterparties will deduce the number of active devices (books) a ledger is on. The alternative is tracking rolling book lineages and their associated permissions.
+
+
 ### Fingerprints
 
 Fingerprints are relationally salted tokens designed to identify payloads sent by known counterparties without revealing their ledger key to observers.
