@@ -234,7 +234,7 @@ In practice, signing hardware only needs to know what payload to sign and what k
 Do _not_ send the contract envelope as is or the requisite contract CID and the authorizations one by one. Sending the first is invalid since you want to sign the contract's CID, and signing payloads one by one sucks with hardware as much as it does with a pen at a law office. For better UI/UX, have the end-user sign once and let the app deal with that grueling mess. The hardware will hold the ledger key or another key with a `/sign` authorization for it. Have it sign a `/sign` authorization gated on that `transaction` for a single-use key. Then, sign the payloads using that key, and slip the authorization into the envelope.
 
 For the rest, you'll typically want to send the signing hardware a `COSE_Sign1` object to collect one signature on the payload.
-  
+
 
 ## Signature Verification
 
