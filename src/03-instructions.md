@@ -89,7 +89,7 @@ Definition instructions bind their subject to:
 
 2. An attachment, when the object starts with a content ID prefixed with `cid:`:
 
-        @! Terms.pdf: cid:f1220aba4c...
+        @! Terms.pdf: cid:f10551220aba4c...
 
 3. A scalar value in every other case:
 
@@ -340,7 +340,7 @@ Apps MUST support using public keys in `did:key` format as a proof scheme, or `d
 
 - A non-signing participant to vet an attachment (or a scalar) without needing to sign the contract (a common requirement in bureaucracies):
 
-        @! Specs.pdf: f1220e1d90... <Engineering:Specs.pdf.sig>
+        @! Specs.pdf: cid:f01551220e1d90... <Engineering:Specs.pdf.sig>
 
 - All participants to attach a `/sign/contract` authorization scoped on `claim` to a ledger in order to grant it arbitral authority over a transaction (see `/sign` Authorizations and Disputes):
 
@@ -465,7 +465,7 @@ Apps MUST support enumerating capability decorators after trigger definitions, e
 
 Capabilities allow controlling what triggers can do in sandboxes. WebAssembly’s deny-by-default model exposes no file system, network sockets, system clocks, environment variables, process/thread primitives, inter-process communication, direct hardware access, or non-deterministic entropy sources. These must all be imported as part of setting up the virtual machine. Capabilities allow defining what to import:
 
-    @! task.wasm: cid:f122009310... +clock:wall +net:outbound
+    @! task.wasm: cid:f0155122009310... +clock:wall +net:outbound
 
 Apps that support triggers SHOULD support the following baseline capabilities:
 

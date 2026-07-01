@@ -225,7 +225,7 @@ These could denote all sorts of data entry problems, so process errors first:
 
 - If the subject is a file in `cid` format, collect an invalid type error for and skip the instruction:
 
-        @! cid:f1220df766...: Malicious
+        @! cid:f01551220df766...: Malicious
 
 - If the object is `-`, or the instruction has a bookkeeping line, then it is an action whose subject is undefined, so collect an undefined error for and skip the instruction:
 
@@ -234,7 +234,7 @@ These could denote all sorts of data entry problems, so process errors first:
 
 - If the object is a file in `cid` format with a bookkeeping line, collect an invalid type error for and skip the instruction:
 
-        @! Invalid: cid:f1220df766... 100 USD
+        @! Invalid: cid:f01551220df766... 100 USD
 
 Other collected instructions are unequivocally definitions. Annotate each as a definition---collect a duplicate error for and skip applicable instructions as you go along. Then annotate every unannotated instruction as a directive if a directive indicator is present, else as an action.
 
@@ -250,7 +250,7 @@ The first block in our earlier example might now look something like:
       type: "action",
       subject: "did:key:z6MkFEB7V...",
       directive: "",
-      object: "cid:f1220df766...",
+      object: "cid:f01551220df766...",
       line: "",
       proofs: [["did:key:z6MkCDkFW...", "zdpu6vTR4..."]],
       capabilities: [["fs:read", "/path"]],
@@ -278,8 +278,8 @@ With directives and actions identified, and all definition references in them pr
 
 - Collect an invalid type error for and skip any directive whose object has a bookkeeping line, a proof, or a capability:
 
-        @! did:key:z6MkFEB7V...: > "cid:f1220df766..." 100 USD
-        @! did:key:z6MkFEB7V...: < "cid:f1220df766..." 100 USD +clock:wall
+        @! did:key:z6MkFEB7V...: > "cid:f01551220df766..." 100 USD
+        @! did:key:z6MkFEB7V...: < "cid:f01551220df766..." +clock:wall
 
 - Collect an undefined error for and skip any action whose object is _not_ a key in `did:key` format _nor_ a file in `cid` format:
 
@@ -297,7 +297,7 @@ With directives and actions identified, and all definition references in them pr
 
 - Collect an invalid type error and skip any action whose object is a file in `cid` format with a bookkeeping line.
 
-        @! did:key:z6MkFEB7V...: "cid:f1220df766..." 100 USD
+        @! did:key:z6MkFEB7V...: "cid:f01551220df766..." 100 USD
 
 Apps MUST NOT validate proofs at this point. The signatures and authorizations might not all have been acquired yet, or have been deleted (see Integrity). The time to verify addresses and block transactions with invalid `did:key` proofs is at signing time (see Due Diligence).
 
@@ -332,7 +332,7 @@ Quotes MUST enclose a whole value, and allow using any character inside them, in
 
 Proofs start with a whitespace, followed by a `<`, a scheme, `:`, a locator, up to two optional arguments prepended with a `$`, and `>`. An unquoted scheme MAY be a key in `did:key` format, and an unquoted locator MAY be a file in `cid` format. A scheme, locator, or proof argument MUST NOT contain `;`, `+`, `:`, `<`, `>`, `$`, or whitespace characters, with an exception on `:` made for the latter two patterns. The first ISO 8601 extended-formatted proof argument MUST be captured as the date, with an optional `-` sign prepended to it. The other proof argument, if any, MUST be captured as arguments passed as a query string. Schemes, locators, and proof arguments MAY have whitespace around them.
 
-    @! Subject: Object <did:key:z6MkFEB7V...:cid:f1220df766...>
+    @! Subject: Object <did:key:z6MkFEB7V...:cid:f01551220df766...>
     @! Subject: Object < "scheme" : "locator" $ "argument" >
 
 Capabilities start with a whitespace, followed by a `+` and a capability part, with any number of `:` followed by another part after that. Unquoted parts MUST NOT have  `;`, `+`, `:`, `<`, `>`, or whitespace characters in them, and parts MUST NOT have whitespace around them. The capability base is at least two parts long, and the tail is the final part when there are more than two parts.

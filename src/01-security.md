@@ -25,7 +25,7 @@ Apps MAY encode collision-resistant IDs as they see fit when sharing them with o
 
 These specifications use:
 
-- Content Identifier (CID) to mean the ID derived by hashing the byte stream of the file it refers to and augmenting the result so it's in a CIDv1-compatible format [@CID].
+- Content Identifier (CID) to mean the ID derived by hashing the byte stream of the file it refers to and augmenting the result so it's in a CIDv1-compatible format [@CID]. Contract attachments are typically terminal leaf node with no outbound links (`raw` multicodec `0x55`).
 
 - File in `cid` format to mean `cid:<cid>` where `<cid>` is the file's Content Identifier.
 
