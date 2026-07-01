@@ -122,15 +122,15 @@ A transaction's date is the earliest date when it became finalized based on the 
 
 Apps MUST hash signature payloads before signing them, and MAY use the hash and signature algorithms of their choice while doing so (see Encryption), but MUST output signatures as signatures in `varsig` format or files in `cid` format (see Identities).
 
-Apps MUST normalize non-hash payloads before hashing them (see Normalization). This holds for contracts, promises, and other non-hash payloads.
+Apps MUST normalize text-based payloads like contracts before hashing them (see Normalization).
 
-Apps MUST sign the payload's _raw_ hash digest. Put another way, apps:
+Apps MUST encode JSON-based payloads like promises into a CBOR byte stream (RFC 8949) according to the DAG-CBOR Specification [@DagCBOR], and hash the CBOR byte stream instead of the JSON data. In other words, this is like computing a canonical ID (see Canonical IDs).
 
-1. MUST NOT sign a contract's CID or any intermediary representation---extract the raw, binary bytes from the CID, and sign those only.
+Apps MUST hash the raw bytes of other types of payloads. In particular, apps MUST extract the raw bytes from the key in `did:key` format, and hash those only, rather than its string representation.
 
-2. MUST NOT sign a public key in `did:key` format as its string representation---extract the raw, binary bytes from the key in `did:key` format, and sign those only.
+Apps MUST sign the payload's _raw_ hash digest, not its multiformat augmented version or the latter's string representation.
 
-This ensures a contract's CID or a public key in `did:key` format produces the same signature regardless of the encoding used to share it.
+This ensures a contract, a promise, or a key in `did:key` format produces the same signature across apps.
 
 
 ## UCAN Payloads
