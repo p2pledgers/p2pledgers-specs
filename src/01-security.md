@@ -15,7 +15,7 @@ Apps MUST expose a public key per ledger they hold to sign transactions (their l
 Apps MAY store the public keys of ledgers for any duration, and MUST store the ledger keys of ledgers they're gossiping with (see Gossip) until the pending transactions with them are finalized or purged. This ensures apps can gossip about ledgers they don't yet know or can't reach.
 
 
-### Identifiers
+## Identifiers
 
 The takeaways so non-technical readers can skip past the uncharacteristic use of jargon: Use IDs that won't collide, encode them so they play well with all systems, and use self-describing formats---meaning files, keys, and signatures in `cid`, `did:key`, and `varsig` format respectively.
 
@@ -36,6 +36,15 @@ These specifications use:
 These self-describing formats [@Multiformats] ensure interoperability with web3 projects like IPFS [@IPFS].
 
 These specifications use shortened IDs in examples for brevity and readability---actual IDs would be longer.
+
+
+### Canonical IDs
+
+Canonical IDs are deterministic content IDs for JSON-based data. They enable apps to consistently identify JSON-based data as those get exchanged despite slight inconsistencies tied to asynchronous edits.
+
+Apps MUST support encoding JSON-based data into a CBOR byte stream (RFC 8949) after normalizing it according to the DAG-CBOR Specification [@DagCBOR]. This guarantees a 1:1 mapping between a JSON object's state and a CBOR byte stream by normalizing the order and format of JSON data. Apps SHOULD use an existing DAG-CBOR library for this purpose.
+
+A JSON datum's canonical ID is the content ID of this canonical byte stream. These identifiers get used inside envelopes (see Envelopes), so a consistent canonical ID representation is desirable: apps MUST hash this canonical byte stream using SHA-256 (`0x12`), assign it the `dag-cbor` multicodec (`0x71`), and base16-encode it (`0x66`). This guarantees apps all produce canonical IDs that start with `f01711220`.
 
 
 ### Book IDs
