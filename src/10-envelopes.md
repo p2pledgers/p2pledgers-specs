@@ -5,7 +5,7 @@
 
 Envelopes are JSON wrappers that enable sharing transactions incrementally and augmenting them with non-contractual metadata.
 
-Apps MUST normalize a transaction's contract before wrapping it in an envelope (see Normalization).
+Apps MUST normalize all text- and JSON-based data included inside envelopes (see Normalization).
 
 
 ## Envelope Format
