@@ -438,29 +438,7 @@ Capabilities allow controlling what triggers can do in sandboxes. WebAssembly’
 
     @! task.wasm: cid:f0155122009310... +clock:wall +net:outbound
 
-Apps that support triggers SHOULD support the following baseline capabilities:
-
-+--------------------+------------------------------------------------------+
-| Capability         | Description                                          |
-+====================+======================================================+
-| `+clock:monotonic` | Non-decreasing millisecond clock                     |
-+--------------------+------------------------------------------------------+
-| `+clock:wall`      | ISO 8601 wall-clock time (host-local)                |
-+--------------------+------------------------------------------------------+
-| `+fs:read`         | Read-only file access, scoped: `+fs:read:/path`      |
-+--------------------+------------------------------------------------------+
-| `+fs:write`        | Write file access, scoped: `+fs:write:/path`         |
-+--------------------+------------------------------------------------------+
-| `+net:outbound`    | Outbound network connections (TCP/UDP/HTTPS)         |
-+--------------------+------------------------------------------------------+
-| `+random:secure`   | Cryptographically secure random bytes                |
-+--------------------+------------------------------------------------------+
-| `+env:read`        | Environment variables, scoped: `+env:read:prefix`    |
-+--------------------+------------------------------------------------------+
-| `+ipc:local`       | Local inter-process communication                    |
-+--------------------+------------------------------------------------------+
-
-Vendors MAY expose finer-grained or broader variants, and SHOULD namespace custom capabilities under `vendor:<name>:` to avoid collisions until enough vendors agree on the semantics. Heeding this suggestion will help avert the interoperability problems that plagued early internet browsers.
+See Triggers for the details.
 
 
 ## Directives
