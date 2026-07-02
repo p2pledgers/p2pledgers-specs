@@ -48,7 +48,7 @@ Apps SHOULD try to warn end-users about malicious transactions they're about to 
 
 Malicious contracts could come in a rich variety of flavors, so this subsection cannot possibly do the topic justice, but there are a few obvious ones to look out for.
 
-The most important one to look for is instruction injection. Seasoned web app engineers will remember the heydays of header injections. This is the same with ledger entries. Instruction parsing rules (see Parsing) were very deliberately designed to prevent them, but triggers mean they cannot be ruled out entirely.
+The most important one to look for is instruction injection. Seasoned web app engineers will remember the heydays of header injections. This is the same with ledger entries. Instruction parsing rules (see Parsing) are very deliberately designed to prevent them, but triggers mean they cannot be ruled out entirely.
 
 One prevention strategy is of course to warn aspiring trigger developers about creating transactions without sanitizing input data. Apps SHOULD warn about the issue in their API docs. Ideally give an example of a trigger that consumes a parameter with a colon and ends up creating ledger entries in the customer's favor (cue `customer="Customer: Vendor 100 USD;"`).
 
