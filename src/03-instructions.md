@@ -237,15 +237,6 @@ Because supporting _executing_ triggers is optional, apps MUST warn end-users be
 Failing to execute triggers (see Triggers) _is_ a breach of contract, with the usual consequences if not remedied promptly (see Disputes).
 
 
-### Sandboxing
-
-Vendors will no doubt author triggers to cover common use cases, like recurring transactions, wire transfers, and cryptocurrency transactions, and tech-savvy ledger controllers will no doubt author many more for their own purposes. Such authors are trusted, if only _de facto_, so the security risks tied to running their code is inherent and consummated.
-
-End-users might also latch onto one or more community-driven efforts to market pre-written ones. Vendors MAY, of course, join and perhaps even instigate such bandwagons---all sorts of consolidation, escrow, and voting requirements today depend on incumbents that are ripe for counter-positioning.
-
-For this reason, apps SHOULD support running executables in safe languages only (WebAssembly is the only such option as of writing), SHOULD warn end-users that are signing up to run triggers in any other language (it's on them if they do it anyway), and SHOULD run executables inside some kind of sandbox or virtual machine _only_. Moreover, ledgers SHOULD NOT expose options to easily disable these guards. Heeding these suggestions will help avert the security problems that plagued early internet browsers.
-
-
 ## Noop Actions
 
 Noop actions, or "No-Op", for No Operation, enable adding signing participants, so witnesses and the like can be required to finalize a transaction:
