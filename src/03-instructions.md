@@ -346,8 +346,6 @@ Apps MAY expose more than one endpoint with the same scheme---having two email a
 
 End-users often enter addresses in their preferred communication order, so apps SHOULD monitor which they enter first, SHOULD allow them to reorder them, and SHOULD reflect their preferred ordering when communicating address proofs.
 
-Conversely, apps SHOULD monitor the order they receive address proofs in, and SHOULD factor that when deciding where to send gossip.
-
 Apps MUST NOT share the address proofs of ledgers they don't hold, since these are contact details that ledger controllers might not want to share.
 
 The Gossip and Trust protocols handle time-outs and rescheduling, so address proof verifications are not needed---an address that yields a signed response is verified _de facto_.
@@ -360,10 +358,6 @@ Contrary to `did:key` proofs, address proofs MAY be reinstated, by separating mu
 
     @! John: did:key:z6MkCMyGw...
         <mailto:john@acme.com$2024-01-01,-2026-05-01,.>
-
-Address proofs that have been revoked can simply be omitted until recovered.
-
-Apps MUST NOT send Gossip or Trust payloads to currently revoked addresses.
 
 
 ### Capabilities
