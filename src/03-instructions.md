@@ -176,7 +176,7 @@ Bookkeeping lines use positive and negative amounts to represent credits and deb
 
 Apps MUST support currencies in decimal format. Currency units in use today all use decimals, and countries with more than one subdivision express amounts as decimal numbers in practice, so decimal are enough for all existing currencies---apps need not support octal or duodecimal or vigesimal units.
 
-Apps MUST support line amounts with _at least_ 9 decimals of precision. That number accommodates all traditional currencies (financial systems usually have 4 digits of precision), 1 BTC = 10^8 satoshis, and 1 ETH = 10^9 Gwei. Vendors SHOULD monitor what the maximum practical precision of currencies with traction is, and adopt if needed. (ERC-20 cryptocurrencies like ETH support 18 decimals under the hood.)
+Apps MUST support line amounts with _at least_ 9 decimals of precision. That number accommodates all traditional currencies (financial systems usually have 4 digits of precision), 1 BTC = 10^8 satoshis, and 1 ETH = 10^9 Gwei. Vendors should monitor what the maximum practical precision of currencies with traction is, and adopt if needed. (ERC-20 cryptocurrencies like ETH support 18 decimals under the hood.)
 
 Apps MUST reject line amounts they cannot honor. In plain text for vendors: a transaction graph plagued with integer overflows and float-related rounding errors is not helpful, so reject (malicious?) transactions that create such problems as a pre-flight check, and use arbitrary-precision or integer-based arithmetic for all bookkeeping calculations.
 
@@ -209,7 +209,7 @@ Apps SHOULD take the UI/UX highground and let end-users use natural language in 
 
 Bookkeeping instructions MUST balance to zero for every counterparty pair in every currency unit. Put another way, if my ledger has a transaction that says I owe you something, then your ledger has a transaction to the same effect the other way around (or several transactions that do in aggregate). This reflects the exchange of bearer notes that the ledger entries mirror.
 
-Apps SHOULD insert and autocorrect bookkeeping lines to keep them balanced, or better yet provide dedicated UI, so ledger controllers can type what they're spending (minus) or receiving (plus) from their viewpoint and not worry about balancing double-entry bookkeeping lines. Vendors SHOULD NOT try to impose one "correct" sign---some cases are best thought of as paying or now owing, while others are best thought of as receiving or no longer owing, so let users do both and balance the lines for them under the hood.
+Apps SHOULD insert and autocorrect bookkeeping lines to keep them balanced, or better yet provide dedicated UI, so ledger controllers can type what they're spending (minus) or receiving (plus) from their viewpoint and not worry about balancing double-entry bookkeeping lines. Apps SHOULD NOT try to impose one "correct" sign---some cases are best thought of as paying or now owing, while others are best thought of as receiving or no longer owing, so let users do both and balance the lines for them under the hood.
 
 Apps MUST reject unbalanced transactions as invalid. Apps MAY store unbalanced transactions for drafting purposes, but MUST NOT gossip them (see Gossip).
 

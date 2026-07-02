@@ -177,7 +177,7 @@ Email- and browser-based apps MAY support sharing and automatically consuming bo
 
 ## Privacy
 
-Apps MUST encrypt any data they hold in storage and in transit. Vendors SHOULD use their best judgement on where to draw the line: unencrypted data in RAM is impractical to avoid, but that doesn't make unencrypted data in Memcached okay.
+Apps MUST encrypt any data they hold in storage and in transit. Vendors should use their best judgement on where to draw the line: unencrypted data in RAM is impractical to avoid, but that doesn't make unencrypted data in Memcached okay.
 
 Apps MUST encrypt and sign communications with other apps except as needed to first establish a secure and authenticated communication channel, and MUST flatly deny all other interactions to not leak meta-information.
 
@@ -187,7 +187,7 @@ Uncompromising transaction privacy is a simple matter of creating new ledgers. F
 
 Transaction confidentiality is a simple matter of having a payment intermediary pay the bill. This guarantees that the Trust protocol, which normally reveals a non-zero balance along with direction and magnitude hints to help consolidate debt loops, leaks nothing---since the intermediary consolidated the transaction at payment time. Apps SHOULD offer UI (a checkbox) to enable ledger controllers to mark some or all transactions as confidential and automate enforcing that an intermediary pay the transaction in full.
 
-Vendors SHOULD adopt the mindset that the best way to not leak information---or worse, find it dumped in a data breach---is to not ask for it to begin with. As such, Apps SHOULD NOT require personally identifiable information beyond what's needed for permission control (see Authorizations) and what end-users volunteer inside the transactions themselves.
+Vendors should adopt the mindset that the best way to not leak information---or worse, find it dumped in a data breach---is to not ask for it to begin with. As such, Apps SHOULD NOT require personally identifiable information beyond what's needed for permission control (see Authorizations) and what end-users volunteer inside the transactions themselves.
 
 
 ## Authentication
@@ -448,4 +448,4 @@ The spyware angle may need expanding on. Dystopian amounts of trackers exist onl
 
 In that light, apps SHOULD assume no end-user wants their tracking, SHOULD NOT prompt end-users to opt in on first use, and SHOULD keep all diagnostics logs local until an end-user agrees to send relevant data after a crash.
 
-Vendors SHOULD get into 30-minute calls with a half-dozen end-users every now and then instead. Ask what they use your app for, how they use it, and where it gets in their way. A half dozen is a sweet spot that will surface most issues. You'll get far more actionable information about your app and market than from tracking data. Then follow up. A delighted end-user sends referrals like their life depends on it.
+Vendors should get into 30-minute calls with a half-dozen end-users every now and then instead. Ask what they use your app for, how they use it, and where it gets in their way. A half dozen is a sweet spot that will surface most issues. You'll get far more actionable information about your app and market than from tracking data. Then follow up. A delighted end-user sends referrals like their life depends on it.
