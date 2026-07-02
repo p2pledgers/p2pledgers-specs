@@ -3,9 +3,7 @@
 \epigraph{Data are imagined and enunciated against the seamlessness of phenomena.
 }{Lisa Gitelman, "Raw Data" is an Oxymoron (2013)}
 
-Envelopes are JSON wrappers that enable sharing transactions incrementally and augmenting them with non-contractual metadata.
-
-Apps MUST normalize all text- and JSON-based data included inside envelopes (see Normalization).
+The takeaway for non-technical readers: Envelopes are JSON wrappers that enable sharing transactions incrementally and augmenting them with non-contractual metadata.
 
 
 ## Envelope Format
@@ -23,6 +21,8 @@ Apps MUST populate and recognize the following envelope fields at minimum:
 - `references`: The list of transaction docket IDs indexed by the book ID that contains them (`{"909cb...": "f12207e996...", ...}`; see Book IDs and Docket IDs). Apps MUST add or update their docket ID, and MUST leave other entries untouched.
 
 - `signatures` (Optional): The list of signature objects indexed by their canonical ID (`{"f01711220f1a73...": {"signer": "did:key:z6MkCMyGw...", ...}, ...}`; see Signatures and Signature Objects). Apps MUST populate this field with relevant signatures they have for the contract (see Gossip).
+
+Apps MUST normalize all text- and JSON-based data included inside envelopes (see Normalization).
 
 
 ### Signature Objects
