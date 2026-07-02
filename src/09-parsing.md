@@ -330,7 +330,7 @@ Quotes MUST enclose a whole value, and allow using any character inside them, in
     @! Subject: Object 100 "also object <scheme:locator>
     @! "Why: Step 6": Requires 100 Literals   ; Malicious
 
-Proofs start with a whitespace, followed by a `<`, a scheme, `:`, a locator, up to two optional arguments prepended with a `$`, and `>`. An unquoted scheme MAY be a key in `did:key` format, and an unquoted locator MAY be a file in `cid` format. A scheme, locator, or proof argument MUST NOT contain `;`, `+`, `:`, `<`, `>`, `$`, or whitespace characters, with an exception on `:` made for the latter two patterns. The first ISO 8601 extended-formatted proof argument MUST be captured as the date, with an optional `-` sign prepended to it. The other proof argument, if any, MUST be captured as arguments passed as a query string. Schemes, locators, and proof arguments MAY have whitespace around them.
+Proofs start with a whitespace, followed by a `<`, a scheme, `:`, a locator, up to two optional arguments prepended with a `$`, and `>`. An unquoted scheme MAY be a key in `did:key` format, and an unquoted locator MAY be a file in `cid` format. A scheme, locator, or proof argument MUST NOT contain `;`, `+`, `:`, `<`, `>`, `$`, or whitespace characters, with an exception on `:` made for the latter two patterns. The first ISO 8601 extended-formatted proof argument with an optional `-` sign prepended to it, or current date shorthand (`.` or `-`), MUST be captured as the date, with multiple dates separated by a comma (`,`). The other proof argument, if any, MUST be captured as arguments passed as a query string. Schemes, locators, and proof arguments MAY have whitespace around them.
 
     @! Subject: Object <did:key:z6MkFEB7V...:cid:f01551220df766...>
     @! Subject: Object < "scheme" : "locator" $ "argument" >
@@ -511,8 +511,8 @@ As noted earlier, these specifications' repository [@P2PLedgersRepo] contains a 
                   / (&(CID _* (">" / "$")) CID)
                   / deco_part
     proof_args  <-  (proof_date proof_query? / proof_query proof_date?)
-    proof_date  <-  _* "$" _* date
-    date        <-  (&(("-" _*)? ISO8601 _* (">" / "$")) deco_part)
+    proof_date  <-  _* "$" _* date (_* "," _* date)*
+    date        <-  &((("-" _*)? ISO8601 / [-.]) _* (">" / "$")) deco_part
     proof_query <-  _* "$" _* query
     query       <-  quoted
                   / deco_part
