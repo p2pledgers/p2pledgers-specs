@@ -396,42 +396,13 @@ As discussed under `/sign` Authorizations, legal deadlines are social. Apps MUST
 
 ### Address Proofs
 
-Other types of proofs are collectively called address proofs, because they are Gossip and Trust API endpoints (see Gossip and Trust). These addresses MAY double as authentication proofs for account recovery (see Authentication).
+Other types of proofs are address proofs because they serve as Gossip and Trust API endpoints (see Gossip and Trust). These MAY double as authentication proofs for account recovery (see Authentication).
 
-Bootstrap handles automate discovering proximity-based endpoints (see Bootstrap Handles), so don't need to be shared using address proofs. A QR code scan or an NFC tap will typically bootstrap a channel using Bluetooth, the local WiFi, or a public website:
+Address proofs are intended for remote endpoints like public URI/IP-based ones, not local endpoints like Bluetooth-based ones (see Transmissions).
 
-- Bluetooth endpoints MUST use the `ble` scheme, MUST use the payload's size header (see Payload Format) to identify the payload boundaries, and MUST behave like bidirectional file drop-like endpoints (without response codes) that immediately reverse roles to stream return frames.
+Advertizing remote endpoints is always OPTIONAL. Advancing transactions step by step as ledger controllers interact offline is not as fast but works too.
 
-- LAN-based endpoints like WiFi MUST use the `http` scheme to avoid certificate warnings, and MUST expose the Gossip and Trust API endpoints of the URI/IP channel (with response codes).
-
-Address proofs are intended for non-local endpoints: interactive ones like the URI/IP endpoint, and non-interactive, fire-and-forget ones like email, phone notification, or file-drops on a public web folder. Such endpoints are always OPTIONAL: lacking addresses, transactions advance one step at a time as ledgers interact via proximity-based endpoints. It's not as fast, but it works too.
-
-The Gossip and Trust protocols handle time-outs and rescheduling, so address proof verifications are not needed---an address that yields a signed response is verified _de facto_.
-
-Apps MUST support consuming URI/IP-based Gossip and Trust endpoints declared using the `http` or `https` scheme (payloads are encrypted, so either works):
-
-    @! John: did:key:z6MkCMyGw... <https://api.acme.com>
-
-Apps MUST support pushing fire-and-forget Gossip to non-interactive endpoints declared using the `mailto` scheme:
-
-    @! John: did:key:z6MkCMyGw... <mailto:john@acme.com>
-
-Apps MAY support other address proof schemes and file drop-like endpoints as they see fit. They are innumerable, so here are a few examples:
-
-- Mobile phone notifications, declared using the `tel` scheme and a phone number as the locator (allow optional formatting of phone numbers for human-readability):
-
-        @! John: did:key:z6MkCMyGw... <tel:+1-123-456-7890>
-
-- Cloud-based web folders declared using their domain as a scheme and a unique handle as the locator:
-
-        @! John: did:key:z6MkCMyGw... <drive.google.com:AbCdE...>
-
-- Private messages on social media declared using their URN or their domain as a scheme and a unique handle as the locator (allow optional formatting of phone numbers for human-readability here too):
-
-        @! John: did:key:z6MkCMyGw... <facebook.com:john> <x.com:john>
-            <whatsapp:+1-123-456-7890> <tg:john> <matrix:john@acme.com>
-
-Vendor prefixes are undesirable for address proof schemes, since the only thing that matters is verifying the claim by checking that the endpoint works. If the verifier doesn't get an answer, they don't verify the address and don't push to it---simple as that. Plus, APIs tend to be stable to avoid uproar. At worst, an API changes, and Gossip tries another channel.
+Apps MAY omit any or all of the API endpoints they advertise in address proofs, and SHOULD omit the addresses of non-interactive transports by default. Sharing your email or phone number with random strangers is seldom desirable.
 
 Apps MAY expose more than one endpoint with the same scheme---having two email addresses is commonplace.
 
@@ -441,7 +412,7 @@ Conversely, apps SHOULD monitor the order they receive address proofs in, and SH
 
 Apps MUST NOT share the address proofs of ledgers they don't hold, since these are contact details that ledger controllers might not want to share.
 
-Apps MAY omit any or all of the API endpoints they advertise in address proofs, and SHOULD omit the addresses of non-interactive transports by default. Sharing your email or phone number with random strangers is seldom desirable.
+The Gossip and Trust protocols handle time-outs and rescheduling, so address proof verifications are not needed---an address that yields a signed response is verified _de facto_.
 
 Address proofs MAY be revoked much like `did:key` proofs:
 
