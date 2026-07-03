@@ -122,7 +122,7 @@ Opening the `.p2pledger` file might be a customer's very first interaction with 
 
 A transaction file's layout is that of a Gossip payload (see Gossip Payloads), without the usual encryption so anyone can open it. It MUST be a flat CBOR map (RFC 8949), without a self-describing tag, containing the contract and its envelope, both indexed by their Content Identifiers (see Identifiers). The envelope MUST be pre-signed by at least one counterparty (typically a promise by the originator), and these pre-signers MUST all include a bootstrap handle with at least one non-local return address (see Address Proofs). The contract MAY contain the `_` template variable.
 
-Apps MUST compress this CBOR map using raw DEFLATE (RFC 1951, without the ZLIB header or GZIP wrapper), MUST prepend that compressed payload with the ASCII characters `P2PL` (`0x50 0x32 0x50 0x4C`) to allow for file type scanning, and MUST write it, unencrypted, inside a `.p2pledger` file.
+Apps MUST prepend that unencrypted CBOR payload with the ASCII characters `P2PL` (`0x50 0x32 0x50 0x4C`) to allow for file type scanning, and MUST write it inside a `.p2pledger` file.
 
 Desktop and laptop apps MUST register themselves as `.p2pledger` file handlers, with the `application/p2pledger` MIME type, and a Uniform Type Identifier (UTI) of `local.p2pledger` conforming to `public.data` on Apple platforms.
 
