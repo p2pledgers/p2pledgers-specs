@@ -16,7 +16,7 @@ Apps MUST populate and recognize the following envelope fields at minimum:
 
 - `units` (Optional): The list unit cluster objects indexed by their canonical ID (`{"f01711220a26cd...": {"USD": 1, "$1": 1, "US$1": 1, ...}, ...}`; see Canonical IDs, Currency Units, and Unit Clusters). Apps MUST append any unit cluster they've matched that lacks a functionally equivalent entry, and MUST leave other entries untouched.
 
-- `references`: The list of transaction folio IDs indexed by the book ID that contains them (`{"909cb...": "07e996...", ...}`; see Book IDs and Folio IDs). Apps MUST add or update the folio IDs associated with their book IDs, and MUST leave other entries untouched.
+- `references`: The list of transaction folio IDs, without a `cid` prefix, indexed by their book ID (`{"909cb...": "f0155122007e996...", ...}`; see Book IDs and Folio IDs). Apps MUST set the folio ID of the current book ID, and MUST leave other entries untouched.
 
 - `signatures` (Optional): The list of signature objects indexed by their canonical ID (`{"f01711220f1a73...": {"signer": "did:key:z6MkCMyGw...", ...}, ...}`; see Signatures and Signature Objects). Apps MUST populate this field with relevant signatures they have for the contract (see Gossip).
 
