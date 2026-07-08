@@ -74,22 +74,13 @@ These self-describing formats [@Multiformats] ensure interoperability with web3 
 These specifications use shortened IDs in examples for brevity and readability---actual IDs would be longer.
 
 
-### Canonical IDs
+## Canonical IDs
 
 A Canonical ID (CID) is a deterministic content ID for JSON-based data. CIDs enable apps to consistently identify JSON-based data as those get exchanged despite slight inconsistencies tied to asynchronous edits.
 
 Apps MUST support encoding JSON-based data into a CBOR byte stream (RFC 8949) according to the DAG-CBOR Specification [@DagCBOR]. This guarantees a 1:1 mapping between a JSON object's state and a CBOR byte stream by normalizing the order and format of JSON data. Apps SHOULD use an existing DAG-CBOR library for this purpose.
 
 A JSON datum's canonical ID is the content ID of this canonical byte stream. These identifiers get used inside envelopes (see Envelopes), so a consistent canonical ID representation is desirable: apps MUST give this canonical byte stream the `dag-cbor` multicodec (`0x71`).
-
-
-### Book IDs
-
-Book IDs enable synchronizing ledgers between devices and hosting many ledgers on the same device without leaking information about these devices or ledgers.
-
-Apps MUST generate a collision-resistant Book ID for each ledger on the device the app is on. Book IDs are intended as anonymized `(device, ledger)` pairs to identify a specific ledger on a specific device, so MUST NOT be derivable from the device's hardware identifiers, secrets, or the ledger's public key.
-
-Apps SHOULD NOT allow regenerating book IDs. The tradeoff of keeping the book ID invariant is a minor metadata leak: over time, regular counterparties will deduce how many devices a ledger is on. The alternative is tracking rolling book lineages and their associated permissions.
 
 
 ## Privacy
