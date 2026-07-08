@@ -214,6 +214,59 @@ Apps SHOULD insert and autocorrect bookkeeping lines to keep them balanced, or b
 Apps MUST reject unbalanced transactions as invalid. Apps MAY store unbalanced transactions for drafting purposes, but MUST NOT gossip them (see Gossip).
 
 
+### Example Transactions
+
+A simple transaction where Jane pays John 100 USD:
+
+    @! Jane: John -100 USD
+    @! John: Jane  100 USD
+
+As mentioned earlier, picturing notes being exchanged can make the accounting easier to follow. The first and second lines mean "Jane issues John a 100 USD IOU" and "John accepts Jane's 100 USD IOU" respectively. In ledger terms, the same lines mean that Jane and John book "John owes me 100 USD less" and "Jane owes me 100 USD more" respectively.
+
+Apps SHOULD, it goes without saying, provide UI that translates the accounting lines to plain language from the end-users's viewpoint. Legal shitfuckery might make Send and Receive or Deposit and Withdraw poor word choices, and Credit and Debit might be too esoteric, but simple directional arrows would fit right in---arrows are fine ways to represent edges on a directed IOU graph, and users will naturally associate them with sending and receiving.
+
+A consolidation transaction between John, Jane, and Jack, where each other's debt to the next cancels the other's, illustrates the same point. It's often easier to think of transactions as bearer notes that are being passed around (John takes Jane's note while issuing one to Jack, etc.):
+
+    @! John: Jane  100 USD
+    @! John: Jack -100 USD
+    @! Jane: Jack  100 USD
+    @! Jane: John -100 USD
+    @! Jack: John  100 USD
+    @! Jack: Jane -100 USD
+
+A transaction where John sells Jane's debt to Jack for 97% of its value, which again is equivalent to a bearer note changing hands, and mirrors what trading government bonds and mortgages looks like (those command a premium marked up or down by the debtor's perceived ability to pay the principal and the interest):
+
+    @! Jane: John -100 USD
+    @! Jane: Jack  100 USD
+    @! Jack: Jane -100 USD
+    @! Jack: John    3 USD
+    @! John: Jane  100 USD
+    @! John: Jack   -3 USD
+
+A spot gold trade where John sells 1 XUA to Jane, in exchange for 4,567.89 USD paid in full through an intermediary Acme, with the seller John paying a 0.5% commission booked on separate lines to make what's going on easier to follow:
+
+    @! John: Jane     -1    XAU
+    @! John: Acme  4_567.89 USD
+    @! John: Acme    -22.84 USD
+    @! Acme: John -4_567.89 USD
+    @! Acme: John     22.84 USD
+    @! Acme: Jane  4_567.89 USD
+    @! Jane: Acme -4_567.89 USD
+    @! Jane: John      1    XAU
+
+A two-step transaction, where John pays Acme to fill an anonymized Anon ledger (which makes Anon creditworthy according to Acme), and then using that to pay Jack with Acme serving as an intermediary:
+
+    @! John: Acme -101 USD
+    @! Acme: John  101 USD
+    @! Acme: Anon -100 USD
+    @! Anon: Acme  100 USD
+
+    @! Anon: Acme -100 USD
+    @! Acme: Anon  100 USD
+    @! Acme: Jack  -99 USD
+    @! Jack: Acme   99 USD
+
+
 ## Executable Actions
 
 Executable actions add Turing-complete scriptability to the transaction graph, by contractually committing participants to execute software as they see fit.
