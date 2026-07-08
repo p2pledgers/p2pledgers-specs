@@ -40,7 +40,7 @@ See Logging for the details on log formats and device synchronization.
 
 The unreliability of wall clocks may need stressing for non-technical readers. Computers use internal oscillators to track time and NTP servers (Network Time Protocol) as their external source of truth. A computer's wall clock could be tampered with, the reference server it's deferring to could be lying, and the routers in between them could be lying too. Adding insult to injury, NTP pools aren't secure, so your choices are trusting a secure but specific NTP provider (plague) or trusting that no one is inside your router (cholera).
 
-Transaction participants set signature deadlines and authorization expirations all the same, so we need to mind wall clocks usage in deadlines and delegated signatures (see Promises and `/sign` Authorizations). Not all wall clock checks are made equal, however, because some transactions are harder to reverse from the perspective of of the graph.
+Transaction participants set signature deadlines and authorization expirations all the same, so we need to mind wall clocks usage in deadlines and delegated signatures (see Promises and `/sign` Authorizations). Not all wall clock checks are made equal, however, because some transactions are harder to reverse from the perspective of the graph.
 
 Critical transactions add or revoke proofs, or assign an executable action to _any_ of its signers (see Instructions). The first allows adding or removing a ledger controller. The other, anything a script can do, so could trigger a wire transfer or a cryptocurrency transaction. Given the stakes, a fresh wall clock check when signing or verifying the signature of such transactions makes sense.
 
