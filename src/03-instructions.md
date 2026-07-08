@@ -89,7 +89,7 @@ Definition instructions bind their subject to:
 
 2. An attachment, when the object starts with a content ID prefixed with `cid:`:
 
-        @! Terms.pdf: cid:f10551220aba4c...
+        @! Terms.pdf: cid:f01551220aba4c...
 
 3. A scalar value in every other case:
 
