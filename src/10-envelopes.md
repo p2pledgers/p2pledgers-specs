@@ -12,8 +12,6 @@ Apps MUST populate and recognize the following envelope fields at minimum:
 
 - `ID`: The transaction's ID, which corresponds to its contract's CID, without a `cid` prefix (`"f01551220ce922..."`).
 
-- `type`: The contract's type, formatted like an HTTP or Email content-type header's value (`"text/markdown; charset=UTF-8; variant=pandoc"`).
-
 - `title` (Optional): The transaction's user-defined title (`"Groceries at Acme ($27.63)"`; see Transaction Titles).
 
 - `units` (Optional): The list unit cluster objects indexed by their canonical ID (`{"f01711220a26cd...": {"USD": 1, "$1": 1, "US$1": 1, ...}, ...}`; see Canonical IDs, Currency Units, and Unit Clusters). Apps MUST append any unit cluster they've matched that lacks a functionally equivalent entry, and MUST leave other entries untouched.
@@ -212,4 +210,3 @@ Apps MUST treat `custom` predicates and unknown predicate fields as _not_ met. T
 Apps MAY add custom predicate fields at their discretion, but SHOULD namespace them behind a `vendor:<name>:` prefix to avoid collisions until enough vendors agree on the semantics. Heeding this suggestion will help avert the interoperability problems that plagued early internet browsers.
 
 Apps SHOULD avoid using arrays inside predicates and predicates that introduce non-monotonic state. A promise's canonical ID (see Canonical IDs) depends on a consistent serialization, and there can be no guarantee that apps won't change the order of array values---at best these specifications tell apps to not do so and Murphy's Law predicts one app will do it anyway. Non-monotonic states mean a final signature can get released based on assumptions that can't be evaluated in isolation. Compare meeting a deadline according to the signer's wall clock with requiring that a condition is _not_ met, with network latency hiding that it actually just did.
-
