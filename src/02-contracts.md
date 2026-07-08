@@ -8,6 +8,13 @@ Conceptually, a transaction is a Ricardian contract [@Grigg2004]: plain-text leg
 The contracts then get normalized, hashed, and enveloped in JSON before signing and sharing. This ensures they can be enriched with metadata such as docket IDs (see Docket IDs), shared incrementally (see Gossip), and signed using existing cryptocurrency hardware if desired.
 
 
+## Transaction IDs
+
+A transaction's ID corresponds to its contract's CID (see Identifiers).
+
+A transaction's ID is immutable, and shared across apps, unless and until the contract gets redlined (see Redlines).
+
+
 ## Contract Format
 
 Apps MUST support reading, rendering, and sharing contracts in their canonical plain-text format, MUST NOT alter contracts unless they are being redlined (see Redlines), and SHOULD NOT gossip contracts that include pre- or post-processing directives like YAML frontmatter, template variables, or macro substitutions that get substituted on the fly. These specifications offer a templating syntax (see Templates), but assume template recipients will only ever use the reserved signer variable---and use it automatically before display or signing, at that. This ensures the signed byte stream and its rendered form remain unequivocal:

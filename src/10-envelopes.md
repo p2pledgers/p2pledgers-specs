@@ -10,7 +10,7 @@ The takeaway for non-technical readers: Envelopes are JSON wrappers that enable 
 
 Apps MUST populate and recognize the following envelope fields at minimum:
 
-- `ID`: The transaction's ID, which corresponds to its contract's CID, without a `cid` prefix (`"f01551220ce922..."`).
+- `ID`: The transaction's ID, without a `cid` prefix (`"f01551220ce922..."`; see Transaction IDs).
 
 - `title` (Optional): The transaction's user-defined title (`"Groceries at Acme ($27.63)"`; see Transaction Titles).
 

@@ -192,7 +192,7 @@ Apps MUST support signing transactions using UCAN authorizations with a `/sign` 
 
 Typically, `/sign` authorizations get used while logged in, so many apps will only ever evaluate delegations ahead of handling signing internally. Apps MAY support `/sign` authorization invocations in APIs, with the following `args`:
 
-- `transaction` (optional, string): Must be a transaction ID, which corresponds to its contract's CID (see Identifiers). Instructs the app to sign the specified transaction and requisite authorizations. Apps MUST NOT gate the `transaction` using `pol`, and MUST reject authorizations that try as invalid, since doing so would neuter dispute related authorizations used in authorization proof chains. Use the `transaction` `meta` gate instead.
+- `transaction` (optional, string): Must be a transaction ID (see Transaction IDs). Instructs the app to sign the specified transaction and requisite authorizations. Apps MUST NOT gate the `transaction` using `pol`, and MUST reject authorizations that try as invalid, since doing so would neuter dispute related authorizations used in authorization proof chains. Use the `transaction` `meta` gate instead.
 
 Apps MUST support gating `/sign` authorizations using `meta` key-value pairs, with the following semantics:
 
@@ -231,7 +231,7 @@ In short, unsorted JSON gets turned into a sorted and more compact CBOR package 
 
 In practice, signing hardware only needs to know what payload to sign and what key to use. Some accept an optional string for UI, but not all, and not always the same key. Apps should use the transaction title (see Transaction Titles), if any.
 
-Do _not_ send the contract envelope as is or the requisite contract CID and the authorizations one by one. Sending the first is invalid since you want to sign the contract's CID, and signing payloads one by one sucks with hardware as much as it does with a pen at a law office. For better UI/UX, have the end-user sign once and let the app deal with that grueling mess. The hardware will hold the ledger key or another key with a `/sign` authorization for it. Have it sign a `/sign` authorization gated on that `transaction` for a single-use key. Then, sign the payloads using that key, and slip the authorization into the envelope.
+Do _not_ send the contract envelope as is or the requisite contract CID and the authorizations one by one. Sending the first is invalid since you want to sign the contract, and signing payloads one by one sucks with hardware as much as it does with a pen at a law office. For better UI/UX, have the end-user sign once and let the app deal with that grueling mess. The hardware will hold the ledger key or another key with a `/sign` authorization for it. Have it sign a `/sign` authorization gated on that `transaction` for a single-use key. Then, sign the payloads using that key, and slip the authorization into the envelope.
 
 For the rest, you'll typically want to send the signing hardware a `COSE_Sign1` object to collect one signature on the payload.
 
