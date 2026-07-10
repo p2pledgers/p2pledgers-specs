@@ -10,7 +10,7 @@ The threat model assumes adversarial or careless vendors, end-users, apps, and i
 
 ## Encryption
 
-Apps SHOULD use adequate security protocols, and MAY refuse to interact with apps that do not---or any other reason, for that mattter. Anything beyond what is in these specifications is at the vendors' discretion.
+Apps SHOULD use adequate security protocols, and MAY refuse to interact with apps that do not---or any other reason, for that matter. Anything beyond what is in these specifications is at the vendors' discretion.
 
 
 ### Curve Selection
@@ -33,6 +33,13 @@ In practical terms: at the time of writing, the MLS-based constraint implies the
 Apps MUST expose a public key per ledger they hold to sign transactions (their ledger key, or key for short), and MUST share and update such keys as needed in transactions (see Redlining and Key Rotations). This ensures keys propagate and stay current as apps interact, with each app serving as a local key registry.
 
 Apps MAY store the public keys of ledgers for any duration, and MUST store the keys of ledgers they're gossiping with (see Gossip and Transmissions) until the pending transactions with them are finalized or purged. This ensures apps can gossip about ledgers they don't know or can't reach.
+
+
+### Hybrid Encryption
+
+Apps SHOULD prefer hardware accelerated algorithms for symmetric encryption to keep battery usage low. In practical terms, that means picking `AES-GCM` at the time of writing, because mobile devices have been offering AES acceleration for over a decade---even KaiOS-based phones with minuscule amounts of RAM offer it.
+
+Also, the Messaging Layer Security working group is standardizing hybrid cipher suites at the time of writing to protect against quantum-related "harvest now, decrypt later" attacks. Apps SHOULD support those after they get finalized.
 
 
 ## Forensics
