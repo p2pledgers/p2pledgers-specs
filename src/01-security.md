@@ -25,7 +25,7 @@ Apps MUST limit curve selection and support to those with:
 
 Apps SHOULD further limit that selection to curves with widespread software and (ideally) hardware availability.
 
-In practical terms: at the time of writing, the MLS-based constraint implies the one on the Data Integrity Cryptosuite, and limits the choice to a handful of modern curves: Ed25519, P-256, P-384, P-521, and Ed448. Of those, Ed25519 and P-256 have near-universal hardware acceleration in modern mobile devices, and P-384 has some hardware availability tied to being in NSA Suite B. P-521 and Ed448 drain batteries. It follows that, at the time of writing, apps MUST offer and support Ed25519 and P-256, SHOULD extend that list to P-384 if they care about interacting with government/defense-compliant devices, and SHOULD NOT extend it to P-521 and Ed448.
+In practical terms: at the time of writing, the MLS-based constraint implies the one on the Data Integrity Cryptosuite, and limits the choice to a handful of modern curves: Ed25519/X25519, P-256, P-384, P-521, and Ed448. Of those, Ed25519/X25519 and P-256 have near-universal hardware acceleration in modern mobile devices, and P-384 has some hardware availability tied to being in NSA Suite B. P-521 and Ed448 drain batteries. It follows that, at the time of writing, apps MUST offer and support Ed25519/X25519 and P-256, SHOULD extend that list to P-384 if they care about interacting with government-compliant devices, and SHOULD NOT extend it to P-521 and Ed448.
 
 
 ### Ledger Keys
