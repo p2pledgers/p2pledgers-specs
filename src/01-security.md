@@ -10,11 +10,29 @@ The threat model assumes adversarial or careless vendors, end-users, apps, and i
 
 ## Encryption
 
-Apps SHOULD use adequate security protocols, and MAY refuse to interact with apps that do not. Cryptography evolves constantly, so specifics beyond what's in these specifications are the vendors' discretion.
+Apps SHOULD use adequate security protocols, and MAY refuse to interact with apps that do not---or any other reason, for that mattter. Anything beyond what is in these specifications is at the vendors' discretion.
+
+
+### Curve Selection
+
+Cryptography evolves quickly, so requiring any specific family of curves would make little sense. Plus, factors beyond security matter when picking one. The most important, in fact, is widespread software and hardware availability. Good curves work out-of-the-box without draining phone batteries flat.
+
+Apps MUST limit curve selection and support to those with:
+
+1. A standardized, unambiguous Data Integrity Cryptosuite that defines a 1:1 mapping between a public key and the hash algorithm used for signing (see Fingerprints).
+
+2. An IANA-maintained Messaging Layer Security Ciphersuite value (MLS; RFC 9420 Section 17.1 Table 6 or its more recent version; and see Messaging and Trust).
+
+Apps SHOULD further limit that selection to curves with widespread software and (ideally) hardware availability.
+
+In practical terms: at the time of writing, the MLS-based constraint implies the one on the Data Integrity Cryptosuite, and limits the choice to a handful of modern curves: Ed25519, P-256, P-384, P-521, and Ed448. Of those, Ed25519 and P-256 have near-universal hardware acceleration in modern mobile devices, and P-384 has some hardware availability tied to being in NSA Suite B. P-521 and Ed448 drain batteries. It follows that, at the time of writing, apps MUST offer and support Ed25519 and P-256, SHOULD extend that list to P-384 if they care about interacting with government/defense-compliant devices, and SHOULD NOT extend it to P-521 and Ed448.
+
+
+### Ledger Keys
 
 Apps MUST expose a public key per ledger they hold to sign transactions (their ledger key, or key for short), and MUST share and update such keys as needed in transactions (see Redlining and Key Rotations). This ensures keys propagate and stay current as apps interact, with each app serving as a local key registry.
 
-Apps MAY store the public keys of ledgers for any duration, and MUST store the ledger keys of ledgers they're gossiping with (see Gossip and Transmissions) until the pending transactions with them are finalized or purged. This ensures apps can gossip about ledgers they don't know or can't reach.
+Apps MAY store the public keys of ledgers for any duration, and MUST store the keys of ledgers they're gossiping with (see Gossip and Transmissions) until the pending transactions with them are finalized or purged. This ensures apps can gossip about ledgers they don't know or can't reach.
 
 
 ## Forensics

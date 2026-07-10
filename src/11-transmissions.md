@@ -159,21 +159,17 @@ Where:
 
 3. `||` means concatenating raw bytes as is.
 
-4. Hash is an algorithm derived from the recipient's public key (see below).
+4. Hash is the algorithm derived from the recipient's ledger key. The codec in the key's `did:key` format reveals its type, which allows to deterministically map that key to the hash algorithm it uses for signing (see Curve Selection). P-256, P-384. and Ed25519 use SHA-256, SHA384, and SHA-512 respectively.
 
 Apps MUST precompute, store, and index the first four bytes (leftmost) of all counterparty fingerprints for fast look-up. Four bytes are enough to guarantee that few if any collisions inside a set will exist, and allow an index layout optimization in database engines that offer Hash indexes.
 
-Apps with enough counterparties that collisions become a problem MAY store more bytes, but SHOULD NOT store the full fingerprint to not invite data breaches as a quick way to build a rainbow table.
+Apps MUST NOT store the full fingerprint, as this would invite data breaches as a quick way to build a rainbow table.
 
 Fingerprints allow an encrypted payload's recipient to determine its sender without trying every public key until they find one that works (see Payload Format), and enable ledgers to ask each other about the creditworthiness of a ledger without revealing its identity to those who don't know it (see Trust). In both cases, a simple look-up reduces the search space to a set small enough (typically one candidate key, rarely more) that recomputing the hash of each candidate key is perfectly acceptable.
 
 Apps MUST compute new fingerprints when they learn about new or rotated keys.
 
 Apps MUST temporarily retain old hashes when rotating keys (see Key Rotations), and MUST compute each counterparty's new fingerprint _before_ letting them know about the key rotation.
-
-Cryptography evolves quickly, and setting a hashing algorithm in stone forever would be uncharacteristic of these specifications. Apps MUST decide which hash algorithm to use based on the public key's Multicodec value. _Vendors_ SHOULD exchange and allow a consensus to emerge about what hashing algorithm a given codec gets tied to as they get released. The important factors are security, speed, and hardware availability---good picks are widely available and won't drain phone batteries flat. Vendors should crowdsource these codec mappings on these specifications' repository [@P2PLedgersRepo]---and should set up a new repository if its maintainers become compromised or unresponsive.
-
-In the interest of setting a baseline: at the time of writing, apps MUST use Blake3 for curves that are commonly used nowadays, and MUST use SHA3-256 for the post-quantum curves that are emerging. Apps SHOULD NOT allow using curves that don't yet have a vendor-agreed-upon Multicodec mapping, since that would prevent apps from different vendors from being able to interact.
 
 
 ## Payload Format
