@@ -3,48 +3,210 @@
 \epigraph{Privacy is necessary for an open society in the electronic age.
 }{Eric Hughes, Cypherpunk's Manifesto (1993)}
 
-An important goal that permeates throughout this document is ensuring that no single party can ever become an all-powerful middleman that controls part or all of the transaction graph.
+An important goal that permeates this document is ensuring no single party can become an all-powerful middleman that controls part or all of the transaction graph.
 
 The threat model assumes adversarial or careless vendors, end-users, apps, and infrastructure, and that transactions around end-users you trust are the only source of trust.
 
-
-## Encryption
-
-Apps SHOULD use adequate security protocols, and MAY refuse to interact with apps that do not---or any other reason, for that matter. Anything beyond what is in these specifications is at the vendors' discretion.
+Apps SHOULD use adequate security protocols, and MAY refuse to interact with apps for any reason, including but not limited to inadequate security.
 
 
-### Curve Selection
+## Primitive Support
 
-Cryptography evolves quickly, so requiring any specific family of curves would make little sense. Plus, factors beyond security matter when picking one. The most important, in fact, is widespread software and hardware availability. Good curves work out-of-the-box without draining phone batteries flat.
+Cryptography evolves constantly, so recommending any specific primitive would guarantee eventual obsolescence. Plus, there is more to primitive selection than security:
 
-Apps MUST limit curve selection and support to those with:
+* Good primitives are ubiquitous enough to work out-of-the-box without draining phone batteries flat, and good cipher suites balance security with the needs of low-end, storage-constrained devices.
 
-1. A standardized, unambiguous Data Integrity Cryptosuite that defines a 1:1 mapping between a public key and the hash algorithm used for signing (see Fingerprints).
+* What other apps want to use necessarily dictates what apps ought to support, and what other apps support dictates what an app can use.
 
-2. An IANA-maintained Messaging Layer Security Ciphersuite value (MLS; RFC 9420 Section 17.1 Table 6 or its more recent version; and see Messaging and Trust).
+* This protocol uses CBOR (Concise Binary Object Representation, RFC 8949) Object Signing and Encryption (COSE; RFC 9052; RFC 9053) and User Controlled Authorization Networks (UCAN; @UCAN), which overlap with JSON Object Signing and Encryption (JOSE; RFC 7515; RFC 7516; RFC 7517; RFC 7518; RFC 7519).
 
-Apps SHOULD further limit that selection to curves with widespread software and (ideally) hardware availability.
+* The use of COSE with post-quantum primitives and hybrid public key encryption (HPKE; RFC 9180) is being normalized at the time of writing [@IETF-COSE-HPKE; @IETF-COSE-HPKE-PQ; @IETF-COSE-SIGS-PQ].
 
-In practical terms: at the time of writing, the MLS-based constraint implies the one on the Data Integrity Cryptosuite, and limits the choice to a handful of modern curves: Ed25519/X25519, P-256, P-384, P-521, and Ed448. Of those, Ed25519/X25519 and P-256 have near-universal hardware acceleration in modern mobile devices, and P-384 has some hardware availability tied to being in NSA Suite B. P-521 and Ed448 drain batteries. It follows that, at the time of writing, apps MUST offer and support Ed25519/X25519 and P-256, SHOULD extend that list to P-384 if they care about interacting with government-compliant devices, and SHOULD NOT extend it to P-521 and Ed448.
+In that light, apps SHOULD limit the primitives and cipher suites they offer to, and MUST support, those with:
+
+1. A well-defined IETF-recommended identifier for use in COSE as part of a cipher suite or as a signature algorithm; and
+
+2. A well-defined, inherent hash function natively used by the primitive or its cryptographic family (for pre-hashing payloads before signing them, or internal transformations like the Fujisaki-Okamoto transform), with hybrid keys using the hash function of their primary (post-quantum) component.
+
+Usage is the critical "well-defined" factor in the above: what matters for an IETF-recommended identifier is that libraries support those identifiers, not that they've a finalized number. The IETF-recommended lists effectively serve as peer-maintained lists of widely supported, well-defined primitives.
 
 
-### Ledger Keys
+## Primitive Shortlist
 
-Apps MUST expose a public key per ledger they hold to sign transactions (their ledger key, or key for short), and MUST share and update such keys as needed in transactions (see Redlining and Key Rotations). This ensures keys propagate and stay current as apps interact, with each app serving as a local key registry.
+At the time of writing, this narrows down the primitives that apps MUST support to a handful of modern ones:
 
-Apps MAY store the public keys of ledgers for any duration, and MUST store the keys of ledgers they're gossiping with (see Gossip and Transmissions) until the pending transactions with them are finalized or purged. This ensures apps can gossip about ledgers they don't know or can't reach.
+* P-256, P-384, P-521, X25519, X448, ML-KEM-512, ML-KEM-768, ML-KEM-1024, ML-KEM-768 + P-256, ML-KEM-768 + X25519, and ML-KEM-1024 + P-384 as key exchange mechanisms (KEM). The ML-KEM ones offer quantum-resistant key exchanges.
+
+* SHA-256, SHA-384, SHA-512, and SHAKE-256 key derivation functions (KDF).
+
+* AES-128-GCM, AES-256-GCM, and ChaCha20-Poly1305 for authenticated encryption with associated data (AEAD).
+
+* P-256, P-384, P-521, Ed25519, Ed448, ML-DSA-44, ML-DSA-65, ML-DSA-87, ML-DSA-44 + P-256, ML-DSA-65 + P-256, ML-DSA-87 + P-384, ML-DSA-44 + Ed25519, ML-DSA-65 + Ed25519, and ML-DSA-87 + Ed448 for signatures. The ML-DSA ones offer quantum-resistant authentication.
 
 
-### Hybrid Encryption
+## Primitive Selection
 
-Apps SHOULD prefer hardware accelerated algorithms for symmetric encryption to keep battery usage low. In practical terms, that means picking `AES-GCM` at the time of writing, because mobile devices have been offering AES acceleration for over a decade---even KaiOS-based phones with minuscule amounts of RAM offer it.
+The need to support these primitives and cipher suites for interoperability does not mean apps need to expose them to users by default.
 
-Also, the Messaging Layer Security working group is standardizing hybrid cipher suites at the time of writing to protect against quantum-related "harvest now, decrypt later" attacks. Apps SHOULD support those after they get finalized.
+Apps SHOULD NOT offer to use P-256, P-384, or P-521, or their associated cipher suites, without a hardware enclave. These both depend on a high-quality random number generator with each use. A lack thereof led to the Sony PS3 hack in 2010 and Bitcoin Wallet hacks in 2013 and 2014. Hardware enclaves offer the entropy guarantees needed to avoid this issue. Apps on devices that lack one MUST NOT even offer cipher suites that use them as options (see Handshakes).
+
+Apps SHOULD skip offering P-256, P-384, or P-521 altogether, in fact, except as needed for government compliance. These primitives are seldom useful outside of legacy-NIST compliant circles, and even there, CNSA 2.0 is phasing them out in favor of hybrid ML-KEM-1024 + P-384 and ML-DSA-87 + P-384 primitives.
+
+Apps SHOULD prefer Ed25519/X25519 over P-256, except perhaps under the hood as the master key (see Public Keys) used to encrypt the app's data. Ed25519/X25519 alleviates the need for a high-quality random number generator with each use, and optimized Ed25519/X25519 software often matches or beats the performance of P-256 with hardware-acceleration. Apps SHOULD prefer Ed448/X448 over P-384 and P-521, for the same reasons.
+
+Apps SHOULD default to using AES-128-GCM or AES-256-GCM. ChaCha20-Poly1305 gets used in IoT settings to avoid the performance cost associated with preventing cache-timing attacks when AES hardware acceleration (AES-NI) is not available. AES-NI is so ubiquitous on modern devices that the only scenario where it won't be is a misconfigured virtualized environment with plenty of CPU to spare.
+
+Post-quantum primitives offer quantum-resistance but demand a brief discussion to clear out potential misconceptions and set expectations.
+
+First and foremost, paranoid-level security is overkill. The only exception is if an intelligence agency is targeting you---and if they are, they hacked into your phone long ago, so ML-KEM-1024 and ML-DSA-87 are not going to help much.
+
+Secondly, quantum-resistant cryptography addresses a hypothetical threat. The issue is not that Ed25519/X25519 is insecure. Rather, it is that experts are warning Shor's algorithm could break it in a decade or so. They've been doing so for the past two decades. National security outfits are leading this charge, so this reeks of the usual military-industrial complex bogeyman to plunder the public's purse for the benefit of private pockets.
+
+Next, there is no cryptocurrency-like finality in this protocol (see Disputes), so post-quantum security and authenticity guarantees, while great on paper, are simply not worth the key and signature size bloat they impose. ML-DSA keys are overkill until the quantum threat materializes, since the utility of a signing key is ephemeral when authenticating a payload, and no one is going to forge a signature for a backdated transaction that would simply get disputed in the off chance the signing key had not been long revoked.
+
+Lastly, you can use a large enough symmetric key to address the "harvest now, decrypt later" threat, since Grover's algorithm only halves their strength. In a traditional curve-based HPKE context, that means a large enough pre-shared key. The question then becomes how to exchange PSKs securely. This protocol's answer is to use a quantum-resistant cipher suite when exchanging PSKs (see Public Keys and Handshakes). That allows using traditional curve-based keys until the quantum threat materializes.
+
+That approach addresses the major issue with post-quantum keys, which is their size. A 1,184-byte ML-KEM-768 key doesn't seem like much until users shop with anonymized keys (see Privacy). Multiply that by counterparties, and it quickly balloons to gigabytes worth of public keys for a connected enough ledger---or terabytes for a large enough corporation. The storage requirements are asinine for a threat that might not materialize for decades longer.
+
+ML-DSA-44, ML-DSA-65, and ML-DSA-87 keys fare no better for signatures.
+
+ML-DSA-44, ML-DSA-65, and ML-DSA-87 can also be slow depending on the hardware. This protocol depends on signing a batch of payloads in near-real time in some situations (see Trust), so apps SHOULD make sure a device is capable of signing a few dozen payloads in acceptably low time before offering ML-DSA keys. That low time is in fact very low, because trust-related payloads make round-trips on the web after getting signed, and users notice they're waiting after around 150 ms. On the flip side, the yardsticks to compare them with are credit card terminals, and it's not like those are blazing fast either.
+
+
+## Cipher Suite Selection
+
+Apps MUST support cipher suites HPKE-3-KE, HPKE-4-KE, HPKE-5-KE, HPKE-6-KE, HPKE-9-KE, HPKE-11-KE, HPKE-12-KE, and HPKE-13-KE, and SHOULD support the others suites based on what hardware enclaves allow.
+
++============+=====================+===========+===================+
+| COSE-HPKE  | KEM                 | KDF       | AEAD              |
++============+=====================+===========+===================+
+| HPKE-0-KE  | P-256               | SHA-256   | AES-128-GCM       |
+| (46)       | (0x0010)            | (0x0001)  | (0x0001)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-1-KE  | P-384               | SHA-384   | AES-256-GCM       |
+| (47)       | (0x0011)            | (0x0002)  | (0x0002)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-2-KE  | P-521               | SHA-512   | AES-256-GCM       |
+| (48)       | (0x0012)            | (0x0003)  | (0x0002)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-3-KE  | X25519              | SHA-256   | AES-128-GCM       |
+| (49)       | (0x0020)            | (0x0001)  | (0x0001)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-4-KE  | X25519              | SHA-256   | ChaCha20-Poly1305 |
+| (50)       | (0x0020)            | (0x0001)  | (0x0003)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-5-KE  | X448                | SHA-512   | AES-256-GCM       |
+| (51)       | (0x0021)            | (0x0003)  | (0x0002)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-6-KE  | X448                | SHA-512   | ChaCha20-Poly1305 |
+| (52)       | (0x0021)            | (0x0003)  | (0x0003)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-7-KE  | P-256               | SHA-256   | AES-256-GCM       |
+| (53)       | (0x0010)            | (0x0001)  | (0x0002)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-8-KE  | ML-KEM-768 + P-256  | SHAKE-256 | AES-256-GCM       |
+| (55)       | (0x0050)            | (0x0011)  | (0x0002)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-9-KE  | ML-KEM-768 + X25519 | SHAKE-256 | AES-256-GCM       |
+| (57)       | (0x647a)            | (0x0011)  | (0x0002)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-10-KE | ML-KEM-1024 + P-384 | SHAKE-256 | AES-256-GCM       |
+| (59)       | (0x0051)            | (0x0011)  | (0x0002)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-11-KE | ML-KEM-512          | SHAKE-256 | AES-128-GCM       |
+| (61)       | (0x0040)            | (0x0011)  | (0x0001)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-12-KE | ML-KEM-768          | SHAKE-256 | AES-256-GCM       |
+| (63)       | (0x0041)            | (0x0011)  | (0x0002)          |
++------------+---------------------+-----------+-------------------+
+| HPKE-13-KE | ML-KEM-1024         | SHAKE-256 | AES-256-GCM       |
+| (65)       | (0x0042)            | (0x0011)  | (0x0002)          |
++------------+---------------------+-----------+-------------------+
+
+The `uint16` codes are the IANA-registered hybrid public key encryption (HPKE; RFC 9180) algorithm identifiers at the time of writing [@IANA-HPKE-Codes]. The HPKE cipher suite values are from the active COSE-HPKE drafts [@IETF-COSE-HPKE; @IETF-COSE-HPKE-PQ].
+
+
+## Recommended Primitives
+
+On the basis of the above, apps SHOULD expose and default to a 128-bit "High Security" cipher suite (HPKE-3-KE) with regularly rotated X25519 transport keys (KEM), SHA-256 (KDF), AES-128-GCM (AEAD), and a longer-lived Ed25519 identity key for signing (see Public Keys). The 32-byte PSKs shared in quantum-resistant handshakes ensure it will be secure when (if) the quantum threat materializes.
+
+Apps MUST use a quantum-resistant cipher suite during handshakes. Either of the 128-bit post-quantum cipher suites are RECOMMENDED for that purpose---the pure post-quantum ML-KEM-512 one (HPKE-11-KE), or the hybrid ML-KEM-768 + X25519 one (HPKE-9-KE) for defense-in-depth.
+
+Handshakes enable ledgers to force another to use a cipher suite to some degree (see Handshakes), so a peer-to-peer-led post-quantum transition that works even if vendors fail to update app defaults and end-users fail to update their apps is baked into this protocol if the quantum threat ever materializes.
+
+
+## Public Keys
+
+Apps MUST expose one public key per ledger as its identity key, or (ledger) key for short, and MUST use this key to sign its transactions and authenticate its transmissions (see Signatures and Transmissions).
+
+Apps MUST expose at least one public key per ledger as its transport key, and MUST share such transport keys with other ledgers so the latter can encrypt payloads for that ledger.
+
+Apps MUST assign exactly one transport key to the identity key of each ledger it interacts with, and MUST maintain at least one short-lived, post-quantum transport key assigned to no specific ledger for use inside handshakes (see Handshakes).
+
+Apps MUST pair each public key they create with a fresh 32-byte secret, except as needed when devices are paired (see below), and MUST generate these secrets using an adequate entropy source. These secrets enable computing the tokens and fingerprints needed to route transmissions (see Fingerprints).
+
+These specifications use a ledger's pre-shared key (PSK) with another ledger to mean the secret that ledger paired with the transport key it assigned to that other ledger.
+
+Apps MUST use handshakes to initially share and subsequently rotate identity keys, transport keys, and PSKs with other ledgers. Apps MUST refresh transport keys and PSKs with each handshake unless the last one occurred less than a day ago. This ensures users can impose their security schedule on one another to a large degree without inviting spam. Apps MUST honor transport keys and secrets for a reasonable duration after rotating them to ensure payloads that cross handshakes on the wire or wait for days on end as file-drops in a web folder can still be decrypted.
+
+Transport keys are often called (recipient) ephemeral keys, and security best practices are to make them short-lived. They typically get rotated after a few uses (or even one) or some period of time, to limit what a compromised private key can decrypt and guarantee forward secrecy. Practicalities make it routine to keep transport keys semi-static outside of web server contexts. Apps MUST NOT make storage assumptions about other apps beyond the requisite transport keys assigned to their ledgers' identity keys. In particular, apps SHOULD NOT spam single-use transport keys, because apps MAY legitimately ignore them all except one.
+
+Apps SHOULD periodically rotate transport keys. There is no correct rotation policy, so the specifics are at vendors' and users' discretion. But note that, in the asynchronous spirit of this protocol, not scheduling rotations at all works fine: check the time since the last rotation upon receiving a payload, and initialize a handshake after the ongoing interaction if the last rotation occurred too long ago. That keeps rotations regular without any scheduling or device synchronization hassles.
+
+Apps MUST NOT share the private keys associated with any of their public keys with apps on any other device---not even other apps that hold the same ledger.
+In the interest of clearing any doubts about what this entails:
+
+* One app can hold several ledgers. Each ledger has exactly one active identity key, at least one active post-quantum transport key for use in handshakes, and exactly one active transport key per ledger it interacts with. Ledgers can also hold any number of inactive keys.
+
+* Conversely ledgers hold the active identity key and the active transport key of every other ledgers it interacts, plus any inactive identity keys they need for archiving purposes.
+
+* Apps use secure channels when synchronizing ledgers. A ledger on a laptop and a phone thereby has two separate sets of keys, with each device's app holding the public keys of the other.
+
+* One handshake sent by any of a sender's devices will trigger a refresh of the transport key/pre-shared key pairs on all applicable devices---the sender's for that recipient, and the recipient's for that sender. Moreover, devices might be out of sync and stay that way for any duration, so refreshed pairs might arrive long after the initial handshake, or never---hence the need to keep old pairs.
+
+Apps MUST duplicate and propagate ledger secrets and pre-shared keys as needed to cluster ledgers that are held by more than one device. The Synchronization section lays this all out in detail, but in short: ledgers share PSKs across clusters, so that any device from a cluster can identify itself using the same PSK when interacting with other ledgers.
+
+Apps MUST create a master key to authenticate users on app open. Apps MUST use that master key to encrypt the app's data so it's decrypted when at rest, and MUST NOT store decrypted data anywhere except as needed to run the app in the device's RAM. Apps MUST store this master key using a hardware enclave (if one is available) or the OS keychain. Note in passing that hardware enclaves don't all work the same. Some of them renege on the widely understood promise of not allowing secrets to leave the enclave outright. All but Android do that at the time of writing when using post-quantum keys, in fact---and even then, Android only keeps that promise for signing keys.
+
+Apps MAY store the public keys of other ledgers for any duration, and MUST store those of a ledger's active counterparties.
+
+Lastly, apps MUST NOT log secret keys of any kind, whether asymmetric, shared, or otherwise.
+
+
+## Identifiers
+
+These specifications use collision-resistant IDs, or IDs for short, to mean IDs that were generated using random or hash-based methods that ensure they are adequately collision-resistant.
+
+Apps MAY encode collision-resistant IDs as they see fit when sharing them with other apps, but MUST share them as filename-, shell-, and URL-safe strings. In practical terms, this means characters MUST be drawn from the `[a-zA-Z0-9_.-]` alphabet. This ensures `base16`, `base58btc`, and other encodings are fine up to `base64url` with no `=` padding, while the likes of `base45`, which contains non-safe characters, are not. The `base58btc` encoding is RECOMMENDED.
+
+These specifications use:
+
+* Multihash of a non-JSON file or string to mean the raw, binary hash of its byte stream prefixed with a hash algorithm identifier and a length indicator encoded in a Multiformat-compatible format [@Multiformats].
+
+* Multihash of a JSON file or string to mean the Multihash of its deterministic DAG-CBOR encoded byte stream representation (RFC 8949; @DagCBOR).
+
+* A multihash whose length is shorter than the hash algorithm's usual length to mean the multihash encoded after truncating the output to the encoded length.
+
+* Hashlink of a file, public key, or string to mean a standard W3C Hashlink [@W3C-Hashlink] without its `hl` scheme: the byte stream's multihash encoded with a Multiformat-compatible Multibase prefix, like `z` for `base58btc`. This is for use as file and key identifiers inside contracts and gossip payloads (see Instructions and Gossip).
+
+* Canonical hash algorithm to mean SHA-256. Apps MUST use the canonical hash algorithm when creating any hashlink. That is its main use in this protocol.
+
+* Public key in `did:jwk` format to mean `did:jwk:<key>` where `<key>` is the `base64url`-encoded JSON Web Key (JWK; RFC 7517) representation of that public key, as defined by the `did:jwk` method specification [@DID-JWK]. This is for use inside UCAN authorizations.
+
+* Signature in `varsig` format to mean a cryptographic signature encoded as a byte string in `varsig` v1-compatible format [@Varsig]. This is for use inside COSE envelopes and UCAN authorizations to avoid multiplying signature files.
+
+* A public key's hash algorithm to mean the inherent hash function natively used by the primitive or its cryptographic family (for pre-hashing payloads before signing them, or internal transformations like the Fujisaki-Okamoto transform), with hybrid keys using the hash function of their primary or post-quantum component. For instance, SHA2-512 for Ed25519/X25519 and P-521, SHA-256 for P-256, SHA-384 for P-384, and SHAKE-256 with a 512-bit output length for Ed448/X448 and the ML-DSA and ML-KEM keys.
+
+* A public key's 32-byte hash algorithm to mean its usual hash algorithm with its output truncated to its first (leftmost) 32 bytes. These 32-byte hashes are for use in transmissions (see Transmissions).
+
+Vendors SHOULD revisit the choice of SHA-256 if a vulnerability is ever found in it that materially affects its ability to uniquely identify documents that are being gossiped (see Gossip). A hypothetical collision vulnerability would far more likely affect its use in key derivation rather than this protocol's use for it, so the odds of ever needing to change it are about zero. It would require supporting more than one hash option. These self-describing formats ensure hashlinks are self-documenting should that ever become necessary.
+
+Note: DAG-CBOR integer-handling rules diverge in Javascript. Apps MUST encode numbers that have no fractional part and are within the standard integer range as CBOR integers (major type 0 or 1, like in Rust and Go), not floating-point numbers (major type 7, as sometimes happens in Javascript). In practical terms, be mindful of your Node.js library, and add unit tests with integers beyond JavaScript's `Number.MAX_SAFE_INTEGER`.
 
 
 ## Forensics
 
-Apps MUST maintain an append-only log for their transaction history. This log MUST compute its next hash based on the data being logged, its previous state, and the local timestamp (see Logging).
+Apps MUST maintain an append-only log for their transaction history. This log MUST compute its next hash using the canonical hash (see Identifiers) based on the data being logged, its previous state, and the local timestamp according to the local wall clock (see Logging).
 
 This transaction history is not intended to synchronize hashes much less full logs between ledgers, nor is it intended for any type of consensus automation. It does not even try to be those things.
 
@@ -65,56 +227,20 @@ See Logging for the details on log formats and device synchronization.
 
 The unreliability of wall clocks may need stressing for non-technical readers. Computers use internal oscillators to track time and NTP servers (Network Time Protocol) as their external source of truth. A computer's wall clock could be tampered with, the reference server it's deferring to could be lying, and the routers in between them could be lying too. Adding insult to injury, NTP pools aren't secure, so your choices are trusting a secure but specific NTP provider (plague) or trusting that no one is inside your router (cholera).
 
-Transaction participants set signature deadlines and authorization expirations all the same, so we need to mind wall clocks usage in deadlines and delegated signatures (see Promises and `/sign` Authorizations). Not all wall clock checks are made equal, however, because some transactions are harder to reverse from the perspective of the graph.
+Transaction participants set signature deadlines and authorization expirations all the same, so we need to mind wall clock usage in deadlines and delegated signatures (see Promises and `/sign` Authorizations). Not all wall clock checks are made equal, however, because some transactions are harder to reverse from the perspective of the graph.
 
 Critical transactions add or revoke proofs, or assign an executable action to _any_ of its signers (see Instructions). The first allows adding or removing a ledger controller. The other, anything a script can do, so could trigger a wire transfer or a cryptocurrency transaction. Given the stakes, a fresh wall clock check when signing or verifying the signature of such transactions makes sense.
 
-Non-critical transactions can be more lenient. Off-graph due diligence is still be warranted before releasing, shipping, or clearing what needs to be, but the tradeoff tilts toward making ledgers work offline since the transaction itself can be disputed as fraudulent and reversed.
+Non-critical transactions can be more lenient. Off-graph due diligence is still warranted before releasing, shipping, or clearing what needs to be, but the tradeoff tilts toward making ledgers work offline since the transaction itself can be disputed as fraudulent and reversed.
 
-See Logging for the details on wall clock synchronization and forensics.
-
-
-## Identifiers
-
-The takeaways so non-technical readers can skip past the uncharacteristic use of jargon: Use IDs that won't collide, encode them so they play well with all systems, and use self-describing formats---meaning files, keys, and signatures in `cid`, `did:key`, and `varsig` format respectively.
-
-These specifications use collision-resistant IDs, or IDs for short, to mean IDs that were generated using random or hash-based methods that ensure they are adequately collision-resistant.
-
-Apps MAY encode collision-resistant IDs as they see fit when sharing them with other apps, but MUST only share such IDs as filename-, shell-, and URL-safe strings---meaning all characters must be inside the `[a-zA-Z0-9_.-]` alphabet. This ensures `base16`, `base58`, `base58btc`, and other encodings are all fine up to `base64url` with no `=` padding.
-
-These specifications use:
-
-- Content Identifier (CID) of a non-JSON file to mean the ID derived by hashing its byte stream, and augmenting the result so it's in a CIDv1-compatible format [@CID]. Contract attachments are typically terminal leaf node with no outbound links (`raw` multicodec `0x55`).
-
-- Content Identifier (CID) of a JSON file to mean its canonical ID (see below).
-
-- File in `cid` format to mean `cid:<cid>` where `<cid>` is the file's Content Identifier.
-
-- Public key in `did:key` format to mean `did:key:<Key>` where `<Key>` is that public key encoded and augmented as defined by the `did:key` format [@DidKey].
-
-- Signature in `varsig` format to mean a cryptographic signature encoded as a string in `varsig` v1-compatible format [@Varsig].
-
-These self-describing formats [@Multiformats] ensure interoperability with web3 projects like IPFS [@IPFS].
-
-These specifications use shortened IDs in examples for brevity and readability---actual IDs would be longer.
-
-
-## Canonical IDs
-
-A Canonical ID (CID) is a deterministic content ID for JSON-based data. CIDs enable apps to consistently identify JSON-based data as those get exchanged despite slight inconsistencies tied to asynchronous edits.
-
-Apps MUST support encoding JSON-based data into a CBOR byte stream (RFC 8949) according to the DAG-CBOR Specification [@DagCBOR]. This guarantees a 1:1 mapping between a JSON object's state and a CBOR byte stream by normalizing the order and format of JSON data. Apps SHOULD use an existing DAG-CBOR library for this purpose.
-
-A JSON datum's canonical ID is the content ID of this canonical byte stream. These identifiers get used inside envelopes (see Envelopes), so a consistent canonical ID representation is desirable: apps MUST give this canonical byte stream the `dag-cbor` multicodec (`0x71`).
+See Logging for the details on wall clock synchronization.
 
 
 ## Privacy
 
-Apps MUST encrypt any data they hold in storage and in transit. Vendors should use their best judgement on where to draw the line: unencrypted data in RAM is impractical to avoid, but that doesn't make unencrypted data in Memcached okay.
+Apps MUST encrypt and sign communications with other apps except as needed to first establish a secure channel (see Transmissions).
 
-Apps MUST encrypt and sign communications with other apps except as needed to first establish a secure channel (see Transmissions), and MUST flatly deny all other interactions to not leak meta-information.
-
-Apps MUST authenticate ledger controllers (see Authentication) before granting them access to the data the app holds, whether for use inside it, or outside it using transaction protocols (see Gossip and Trust) or other APIs that grant access to that data, nominal or anonymized, as records or aggregates, for any purpose---analysis, audits, reporting, load balancing, anything.
+Apps MUST authenticate ledger controllers (see Public Keys and Authentication) before granting them access to the data the app holds, whether for use inside it, or outside it using this protocol (see Gossip and Trust) or other APIs that grant access to that data, nominal or anonymized, as records or aggregates, for any purpose---analysis, audits, reporting, load balancing, anything.
 
 Uncompromising transaction privacy is a simple matter of creating new ledgers. Fill them directly or through intermediaries so they look creditworthy (see Intermediaries), exactly like you'd fill or pay someone to fill a prepaid card. With this said, transactions usually need to be kept confidential rather than made anonymous, and creating a new ledger is overkill in that case.
 
@@ -131,19 +257,19 @@ Conceptually, authentication has two models:
 
 2. Proof, like when someone vouches for you (friends introduce you to someone, trusted peers have signed your public key), or when you show you control known data (a private key, an email, a website, a phone number, a password, a device, a fingerprint, or more, with multi-factor authentication).
 
-Our main concerns are, how can you tell that this ledger with a public key you don't know is not a malicious user, and what to do when end-users rotate keys, lose devices, or simply merge ledgers? Rephrased in real life terms, how would you prove you are you after changing your signature? Essentially, you'd show a paper with your new signature signed using an old signature, or line up people that will vouch it is as evidence. With this context out of the way:
+Our main concerns are: how can you tell that this ledger with a public key you don't know is not a malicious user, and what to do when end-users rotate keys, lose devices, or simply merge ledgers? Rephrased in real life terms, how would you prove you are you after changing your signature? Essentially, you'd show a paper with your new signature signed using an old signature, or line up people who will vouch for it as evidence. With this context out of the way:
 
 Apps MUST accommodate end-users that create and merge ledgers as they see fit across the transaction graph, and MUST accommodate end-users that lose control of their proof methods. To that end, apps MUST:
 
-1. Use the ledger's current ledger key as its identity in transactions and in the transaction log (see Forensics).
+1. Use the ledger's current identity key as its identity in transactions and in the transaction log (see Forensics).
 
-2. Identify ledgers by their identity cluster, which in practical terms means a key can have a parent key, and the identity cluster is the resulting set of related keys.
+2. Allow ledgers to sign an identity key with another as proof that the signing key endorses the signed key (see Signed Proofs). Note that endorsing can go in either or both directions (see Key Rotations and Synchronization). Because identity keys are unique to a ledger, endorsements enable merging ledgers on the same or different devices.
 
-3. Allow ledgers to sign a new key with an old one as proof that they are the same (see `did:key` Proofs). Keys are unique to a ledger, so this enables merging ledgers.
+3. Identify ledgers by their identity cluster, which is the set of keys that have endorsed one another, directly or indirectly, in either direction, across any number of devices. Note that an identity cluster can have more than one active identity key (one per device, essentially).
 
-4. Allow ledgers to associate their key with addresses that they control as API endpoints (url, email, other; see Address Proofs). These addresses MAY be tied to more than one ledger, so apps MUST NOT use them for authentication except locally (like a unique sign-in or recovery link sent to an email).
+4. Allow ledgers to associate their key with addresses that they control as API endpoints (url, email, other; see Address Proofs). These addresses MAY be tied to more than one ledger, so apps MUST NOT use them for authentication except as local sign-in methods (like a unique sign-in or recovery link sent to an email).
 
-5. Allow ledgers to permanently repudiate proofs from a specified date. This is about the proof only. Apps MUST dissociate ledgers that got merged after the specified date, and MUST let end-users handle the fallout using disputes.
+5. Allow ledgers to permanently repudiate proofs from a specified date. This is about the proof only. Apps MUST invalidate any identity cluster merges that occurred after the specified date, and MUST let end-users handle the fallout using disputes---in the same way you'd dispute fraudulent transactions one by one when your credit card gets closed.
 
 6. Allow other ledgers to vouch for a ledger, as a trust signal that doubles as a recovery method (see Vouching).
 
@@ -183,7 +309,7 @@ Apps MUST accommodate proof-based authorizations for ledgers in User Controlled 
 
 Beyond this, apps MAY let end-users delegate part or all of their control over ledgers to others at their discretion, conditional or not, revocable or not, and governed at their leisure (see Communities). This ensures parents, tutors, organizations, community members, and others can place checks on what goes onto their balance sheet. How this works is at the vendors' discretion, with a UCAN based approach recommended. The only constraint is that:
 
-Apps MUST issue and MUST accept only transaction signatures that are valid from the ledger's point of view. In other words, apps must use the ledger's key to sign transactions directly, or to sign UCAN authorizations so delegated keys can sign transactions on its behalf. Apps MUST attach UCAN authorizations for delegated signatures to be valid.
+Apps MUST issue and MUST accept only transaction signatures that are valid from the ledger's point of view. In other words, apps MUST use the ledger's identity key to sign transactions directly, or UCAN authorizations so delegated keys can sign transactions on its behalf. Apps MUST attach these UCAN authorizations for delegated signatures to be valid (see Envelopes).
 
 This constraint is a very deliberate design choice to ensure authorizations get managed upstream of transactions. It means a structurally invalid authorization issued by an app _can_ yield a valid signed transaction, much like an employee _can_ sign an invalid yet enforceable deal for their organization. Such invalid transactions must go through the normal dispute resolution process if rebuffed.
 
@@ -207,9 +333,9 @@ Apps that allow blacklists SHOULD allow whitelists to override blacklist-level b
 
 ## Transparency
 
-Apps SHOULD be open-source and have a reproducible build process. The latter means the build process should always produces the exact same binary, despite temporary files or random values set at compile time and the like. This is so ledger controllers can check that their app is not malware or spyware.
+Apps SHOULD be open-source and have a reproducible build process. The latter means the build process should always produce the exact same binary, despite temporary files or random values set at compile time and the like. This is so ledger controllers can check that their app is not malware or spyware.
 
-The spyware angle may need expanding on. Dystopian amounts of trackers exist online (usage trackers, advertisements), offline (surveillance cameras, smart billboards), and at their intersection (bank cards, location pings, social media, chat bots). Those data later go into marketing (ad bidding, customer profiling), security (fraud or other misuse detection), or reporting (fancy charts) tools---or more recently, in systems that deliver humanless analyses, decisions, pre-crime alerts [@Hung2023], kill targets [@King2024], and other hellish slop. This is not preordained. It's the product of choices, and the principal one is engineers enabling jerks who nag for sex or just take it.
+The spyware angle may need expanding on. Dystopian amounts of trackers exist online (usage trackers, advertisements), offline (surveillance cameras, smart billboards), and at their intersection (bank cards, location pings, social media, chat bots). That data later goes into marketing (ad bidding, customer profiling), security (fraud or other misuse detection), or reporting (fancy charts) tools---or more recently, in systems that deliver humanless analyses, decisions, pre-crime alerts [@Hung2023], kill targets [@King2024], and other hellish slop. This is not preordained. It's the product of choices, and the principal one is engineers enabling jerks who nag for sex or just take it.
 
 In that light, apps SHOULD assume no end-user wants their tracking, SHOULD NOT prompt end-users to opt in on first use, and SHOULD keep all diagnostics logs local until an end-user agrees to send relevant data after a crash.
 
