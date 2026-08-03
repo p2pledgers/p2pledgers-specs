@@ -3,100 +3,106 @@
 \epigraph{The content of any medium blinds us to the character of the medium.
 }{Marshall McLuhan, Understanding Media (1964)}
 
-The takaway for non-technical readers: Transmissions are deliberately designed to be infrastructure-independent and transport-agnostic. Transactions advance asynchronously, one step at a time---quickly on the public web, or slowly as ledger controllers interact offline.
+
+## Secure Channels
+
+Transmissions in this protocol are asynchronous and transport-agnostic, so as to not depend on any infrastructure, with built-in handling of failures like lost devices, dead endpoints, handshakes that cross payloads, and other race conditions (see Gossip and Handshakes).
+
+As a result of this design choice, transmissions are stateless. Messages arrive out of order on different devices tied to the same ledger with no coordination beyond a periodic log exchange (see Synchronization). This precludes managing a ratcheting state, since four devices holding two ledgers might be communicating with one another in any order and be woefully out of sync.
+
+Asynchronous transport-agnosticism also rules out using TLS (RFC 8446) or EDHOC (RFC 9528), since those can't be used to transmit payloads using email or file drops. Hybrid public key encryption (HPKE; RFC 9180) is thus our only sensible encryption option. Its updated and post-quantum versions are active drafts at the time of writing [@IETF-HPKE; @IETF-HPKE-PQ]. Because ledgers can be hosted on more than one device, payloads get encrypted using the hybrid cryptographic envelope pattern with content encryption keys (CEK; see Encryption).
+
+Transmission endpoints can serve multiple ledgers at the same time, and those endpoints can serve other purposes (like email). Apps therefore need a way to identify transmissions tied to this protocol, their sender, and their intended recipient. This protocol assigns fingerprints to specific senders or purposes to that end (see Fingerprints and Endpoint Interactions). These fingerprints could be used for tracking in theory, so this protocol takes several steps to shield them from view.
+
+The first of these is hash-based challenges that protect endpoints from abuses (see Challenges). Challenges are derived from fingerprint-specific tokens (see Transmission Tokens) and the payload being sent. The full fingerprint, which is not sent on the wire, is needed to configure and solve these challenges.
+
+The challenge's result and the full fingerprint get used to derive a symmetric key. The latter gets used to wrap the actual payload in an outer envelope (see Wire Format). This provides a second encryption layer that can only be pierced by knowing the full fingerprint.
+
+The point of this outer envelope is obfuscation, not confidentiality. With this said, known senders derive their fingerprints from their pre-shared keys. This means an observer can at most observe the full fingerprints used in handshakes, and knowing those depends on monitoring HTTPS, Bluetooth, and NFC traffic. The outer envelope's 64-byte symmetric key, which depends on 32 secret bytes, makes it quantum-resistant without the full fingerprint. Plus, the post-quantum keys used in handshakes and the 32-byte pre-shared keys used otherwise ensure HPKE payloads inside envelopes are quantum-resistant anyway.
+
+The last of these steps is a one-time transmission tag that allows obfuscating and deriving the full fingerprint and token data from what gets transmitted on the wire (see Transmission Tags). Tags enable recipients to read the only four bytes of the fingerprint that get XOR-obfuscated on the wire. The hash derived from the tag and the full fingerprint allows reading the XOR-obfuscated token. An integrity check allows confirming that the token is tied to the fingerprint, thus validating both. The tag doubles as an integrity check for the wire as a whole, for further protection against abuses and replay attacks.
+
+In principle, an observer could use the XOR-obfuscated bytes of fingerprints as a beacon. This risk is only theoretical, because an observer would need to know what traffic is related to this protocol to tell apart fingerprinted payloads from false positives in the larger pool of encrypted traffic. Plus, monitoring fingerprints transmitted via HTTPS, Bluetooth, or NFC is just impractical. That limits monitoring to unencrypted channels like emails, phone notifications, and HTTP traffic on local area networks. In those cases, an observer doesn't need a fingerprint to tell them things they know already from transport metadata.
+
+Challenges are checked in constant time to avoid leaking information that might get used in side-channel attacks. Recipients then close the connections tied to failed challenges and duplicate requests to save bandwidth. Automations adjust the threat level during and after attacks (see Threat Management). Legitimate senders caught in the cross-fire get fresh tokens through throttled responses. Illegitimate requests can slip through as a result of accommodating the latter. Those would depend on an attacker completing challenges without triggering the duplicate request filter even as the threat level is rising automatically---and they'd get no response.
+
+In sum, the transmission format is high entropy from head to tail to observers, protects endpoints from abuses like distributed denial of service attacks, and enables recipients to identify the decryption key they'll need to use with HPKE before even opening the payload's envelope---for the cost of an `O(1)` look-up and a few hashes.
 
 
 ## Endpoints
 
-Transmission endpoints are functionally equivalent, in that payload formats are uniform and get encrypted as a matter of course (see below). A few differences between them do exist, however.
+Transmission endpoints are functionally equivalent in that they share a common payload format, but the underlying transport they use create minor differences between them.
 
 
-### Interactive and Non-Interactive Endpoints
+### Endpoint Types
 
-These specifications distinguish between two types of transmission endpoints:
+These specifications distinguishes between interactive and non-interactive endpoints as follows:
 
-- Interactive endpoints are HTTP-like: the transmission sender gets a response from the recipient with a response code and message to signal that the payload was successfully processed or not, and a lack of response (due to a timeout, for instance) signals that it was not. Global and local URI/IP endpoints are interactive endpoint examples.
+* Interactive endpoints that are HTTP-like: The sender sends their payload and the recipient's response signals whether it arrived using a response code or a lack of response (due to a timeout), so there is no uncertainty about delivery failures. Conversely, the recipient can infer their response arrived based on whether the socket flushed cleanly---a broken pipe or another connection error wouold signal that it did noot. HTTP endpoints are HTTP-like, as would be CoAP if apps implement it.
 
-- Non-Interactive endpoints are fire-and-forget: the sender sends their payload without expecting any response. Most endpoints are non-interactive: email and phone notification, file-drops on public web folders, and social media posts are all examples.
+* Interactive endpoints that are stream-like: The sender and the recipient open a bidirectional session and switch roles as they send data to one another. The sender gets no HTTP-like response, but can infer their payload arrived based on whether it got flushed without any connection errors. Stream-like endpoints can require senders and recipients to manage payload boundaries manually. Apps MUST use the predefined length header in such cases (see Wire Format). Bluetooth and NFC endpoints are stream-like, as would be WebRTC if apps implement it.
 
-The two are similar from the Gossip protocols' viewpoints, which is strictly push-based, without polling. The payload format is exactly the same. The only difference beyond speed is that apps know whether or not their request arrived, which enables better transmission queue management.
+* Non-interactive endpoints that are email-like: The sender sends their payload and knows only it was sent. The sender sometimes gets an error when it did not, but not reliably enough that they can count on it. Endpoints SHOULD manage such error messages. Email and phone notifications are non-interactive endpoints, as would be files dropped in web folders or sent through social media or internet relay chat (IRC) if apps implement those.
 
-The Trust protocol only works with interactive endpoints.
+In addition, these specifications distinguish between global endpoints, which are routable over the internet (public HTTP, email), and local ones, which are not (HTTP over a LAN, Bluetooth). Apps MUST NOT share local endpoint addresses inside contracts (see Address Proofs).
 
-Apps MUST return response codes and messages mapped after standard HTTP status codes for all interactive endpoints.
-
-
-### Global and Local Endpoints
-
-These specifications further distinguish between global and local endpoints:
-
-- Global endpoints are routable over the public internet, like public URI/IP- and email-based endpoints.
-
-- Local endpoints are not, like private URI/IP-based enpoints over a LAN or a private WAN, and promity-based endpoints like Bluetooth.
-
-The two are functionally identical from a transmissions viewpoint. The only difference is that apps MUST NOT share local endpoints as address proofs (see Address Proofs). Apps MAY share any endpoint in bootstrap handles (see below).
+These endpoints are all functionally equivalent. The slight differences are in the queue management and their interaction flows. You know the identity key of the website you send a payload to, for instance, while you can't know identity key of the NFC device you've tapped until the NFC host tells its identity key. Beyond that, it's the exact same payload formats and respoonses. Gossip treats transmissions as blackboxes that just work (see Gossip).
 
 
 ### Endpoint Selection
 
-As noted while discussing address proofs, end-users often enter addresses in their preferred communication order, so apps SHOULD monitor which they enter first, SHOULD allow them to reorder them, and SHOULD reflect their preferred ordering when communicating address proofs and bootstrap handles.
+End-users often enter addresses in their preferred communication order, so apps SHOULD monitor which they enter first, SHOULD allow them to reorder them, and SHOULD reflect their preferred ordering when communicating addresses.
 
-Conversely, apps SHOULD monitor the order they receive addresses in, and SHOULD factor that when selecting endpoints to send Gossip and Trust payloads to, with two caveats:
+Conversely, apps SHOULD monitor the order they receive addresses in, and SHOULD factor that in when selecting endpoints to send payloads to, with two caveats:
 
-- Apps SHOULD prefer interactive endpoints over non-interactive ones, because it's better to know if a gossiped transmission was successful or not.
+* Apps SHOULD prefer local endpoints when one is available; and
 
-- Apps SHOULD prefer local endpoints, if any are available, over global ones, because why send a payload to a server on the public internet if the intended recipient has a phone on same local network?
+* Apps SHOULD prefer interactive endpoints over non-interactive ones.
 
 
 ### Revoked Endpoints
 
 Apps MUST NOT send payloads to addresses they know are currently revoked.
 
-Apps MUST track which endpoint they've sent which payload to, and SHOULD offer to re-queue any payload that was sent to a revoked address between when it was revoked and when the app learned it was. Idempotent responses ensure recipients will treat duplicate gossip as network noise.
+Apps SHOULD flag for review any payloads they sent to a revoked address before they learned it had been revoked. Recipients treat duplicate gossip payloads as network noise, so there is no harm in re-sending them---but apps SHOULD let users decide whether to do so.
 
 
-### Required Endpoints
+### Recommended Endpoints
 
 Apps MUST support sending payloads to and consuming payloads from interactive endpoints using the `http` or `https` scheme:
 
     @! John: did:key:z6MkCMyGw... <https://api.acme.com>
 
-The `http` and `https` schemes are equivalent for all practical intents since payloads are encrypted either way. Supporting these schemes ensure apps can interact over LANs at minimum. The `http` scheme allows avoiding certificate warnings on the latter.
+The `http` and `https` schemes are equivalent for all practical intents since payloads are encrypted either way. Supporting these schemes ensures apps can interact over LANs, and thus guarantees a minimum level of interoperability. The `http` scheme allows avoiding certificate warnings on LANs.
 
+Apps SHOULD support sending payloads to and consuming payloads via Bluetooth and NFC when those are options (see Bluetooth Endpoints and NFC Endpoints).
 
-### Recommended Endpoints
-
-Apps SHOULD support sending payloads to and consuming payloads from at least one non-interactive endpoint (which is at vendors' discretion):
+Apps SHOULD support sending payloads to and consuming payloads from the email non-interactive endpoint (`mailto` scheme). Mobile apps SHOULD also support the phone notificattino endpoint (`tel` scheme):
 
     @! John: did:key:z6MkCMyGw... <mailto:john@acme.com>
     @! John: did:key:z6MkCMyGw... <tel:+1-123-456-7890>
 
-Mobile apps SHOULD support both the `mailto` and `tel` schemes.
-
-Non-mobile apps SHOULD support the `mailto` scheme.
-
-Apps MUST allow optional formatting for phone numbers for human-readability.
-
-
-### Optional Endpoints
-
-Apps MAY support other endpoints as they see fit. They are innumerable, so what follows are only examples that warranted a few notes.
-
-Bluetooth endpoints MUST use the `ble` scheme when shared in bootstrap handles (see below). L2CAP byte stream APIS don't manage payload boundaries much less payload responses, so apps MUST manage Bluetooth payload boundaries manually using a size header (see Payload Format), and MUST make Bluetooth endpoints behave like bidirectional file drop-like endpoints without response codes, with the endpoints reversing roles when streaming return frames.
-
-Cloud-based web folders MUST be declared using their domain as the scheme and the unique handle as the locator:
-
-    @! John: did:key:z6MkCMyGw... <drive.google.com:AbCdE...>
-
-Private messages on social media MUST be declared using their URN or domain as the scheme and the unique handle as the locator (and apps MUST allow optional formatting of phone numbers for human-readability here too):
-
-    @! John: did:key:z6MkCMyGw... <facebook.com:john> <x.com:john>
-        <whatsapp:+1-123-456-7890> <tg:john> <matrix:john@acme.com>
+Apps MUST support optional formatting of phone numbers for human-readability in the `tel` and other schemes where they get used.
 
 
 ### Custom Endpoints
 
-Vendor prefixes are undesirable for schemes, since the only thing that matters is that the endpoint works. Apps can simply try interactive endpoints to decide if they work or not, and will already try a different endpoint when one keeps failing. Non-interactive endpoints usually have stable APIs to avoid developer uproar, so any reasonably well tested implementation will do.
+The only thing that matters for interoperability is that endpoints are able to interact. Vendor prefixes are thereby undesirable for schemes. Non-interactive endpoints often have stable APIs to avoid developer uproar, so any well-tested implementation will work. As to interactive endpoints, apps can just try using them to decide if they work and ignore them as dysfunctional when not (if only for a while). The protocol thus accommodates incompatible takes on how schemes work, with the details left at vendors' discretion.
+
+With this said, three rules are needed to avoid scattering schemes:
+
+1. Apps MUST replace dots (`.`) with dashes (`-`) inside schemes derived from domain names, and MUST NOT use custom schemes with dots. RFC 3986 technically allows dots in URI schemes, but support outside of OS-level parsing and app routing is scarce due to fragile regular expressions and the abuse of custom schemes in phishing scams. Contracts get rendered outside of apps (see Contract Files), so dots in URI schemes are best avoided.
+
+2. Cloud-based web folders MUST be declared using their domain as the scheme, and the unique handle as the locator:
+
+        @! John: did:key:z6MkCMyGw... <drive-google-com:AbCdE...>
+
+3. Private messages on social media MUST be declared using their URN or domain as the scheme, and the unique handle as the locator:
+
+    @! John: did:key:z6MkCMyGw... <facebook-com:john> <x-com:john>
+        <whatsapp:+1-123-456-7890> <tg:john> <matrix:john@acme.com>
+
+Beyond that, apps MAY support other endpoints as they see fit.
 
 
 ## Bootstrap Handles
