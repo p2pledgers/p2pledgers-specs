@@ -114,6 +114,31 @@ Apps MUST limit HTTP response codes to exactly two:
 Apps MAY piggyback on an open HTTP connection to return an HTTP response after successfully receiving an HTTP request.
 
 
+### Bluetooth Endpoints
+
+Apps SHOULD support Bluetooth endpoints on applicable devices, and MUST use the standard `ble` scheme when sharing those in handles (see Handles):
+
+    ble:<p2pledger_uuid>:<le_psm>
+
+Where:
+
+* `p2pledger_uuid` is the p2pledger-specific service identifier, which is the Bluetooth equivalent of a domain name (so apps don't waste battery interacting with random smart-bulbs); and
+
+* `le_psm` is an arbitrary low energy protocol/service multiplexer allocated by the operating system at runtime, which is the Bluetooth equivalent of a random TCP/IP port number.
+
+Apps MUST derive the p2pledger-specific service identifier using a standard UUIDv5 library, the `Namespace_DNS` constant defined in RFC 9562 or its later version, whose value is `6ba7b810-9dad-11d1-80b4-00c04fd430c8` at the time of writing, and the `p2pledger.local` domain name:
+
+    Service_UUID = UUIDv5(Namespace_DNS, "p2pledger.local")
+
+The latter formula yields `2b88bd30-24ef-514c-9500-f62295979bfa`.
+
+Note that Bluetooth UUIDs identify service types that devices recognize rather than individual devices, so the semantics differ slightly from other addresses. Devices share their human-readable names and addresses through advertising and scan response packets.
+
+What is more, OS-allocated PSMs (in the range `0x0080–0x00FF`) are dynamic. A `ble:<p2pledger_uuid>:<le_psm>` handle in a QR code or an NFC tag is liable to go stale when its issuer opens another phone app. Apps SHOULD try to get a new PSM from `<p2pledger_uuid>` when an L2CAP connection fails or times out before giving up.
+
+Beyond this, L2CAP Connection-Oriented Channels (CoC) are to Bluetooth what raw socket streams are to TCP/IP, but without any payload boundary management. Apps MUST therefore use the predefined length header when using Bluetooth L2CAP (see Wire Format).
+
+
 ### Custom Endpoints
 
 The only thing that matters for interoperability is that endpoints are able to interact. Vendor prefixes are thereby undesirable for schemes. Non-interactive endpoints often have stable APIs to avoid developer uproar, so any well-tested implementation will work. As to interactive endpoints, apps can just try using them to decide if they work and ignore them as dysfunctional when not (if only for a while). The protocol thus accommodates incompatible takes on how schemes work, with the details left at vendors' discretion.
