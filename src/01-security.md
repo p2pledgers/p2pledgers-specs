@@ -185,8 +185,6 @@ These specifications use:
 
 * Multihash of a JSON file or string to mean the Multihash of its deterministic DAG-CBOR encoded byte stream representation (RFC 8949; @DagCBOR).
 
-* A multihash whose length is shorter than the hash algorithm's usual length to mean the multihash encoded after truncating the output to the encoded length.
-
 * Hashlink of a file, public key, or string to mean a standard W3C Hashlink [@W3C-Hashlink] without its `hl` scheme: the byte stream's multihash encoded with a Multiformat-compatible Multibase prefix, like `z` for `base58btc`. This is for use as file and key identifiers inside contracts and gossip payloads (see Instructions and Gossip).
 
 * Canonical hash algorithm to mean SHA-256. Apps MUST use the canonical hash algorithm when creating any hashlink. That is its main use in this protocol.
