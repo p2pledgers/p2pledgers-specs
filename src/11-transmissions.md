@@ -46,7 +46,7 @@ These specifications distinguishes between interactive and non-interactive endpo
 
 In addition, these specifications distinguish between global endpoints, which are routable over the internet (public HTTP, email), and local ones, which are not (HTTP over a LAN, Bluetooth). Apps MUST NOT share local endpoint addresses inside contracts (see Address Proofs).
 
-These endpoints are all functionally equivalent. The slight differences are in the queue management and their interaction flows. You know the identity key of the website you send a payload to, for instance, while you can't know identity key of the NFC device you've tapped until the NFC host tells its identity key. Beyond that, it's the exact same payload formats and respoonses. Gossip treats transmissions as blackboxes that just work (see Gossip).
+These endpoints are all functionally equivalent. The slight differences between them tie into transmission queues and interaction flows. You know the identity key of the global HTTP endpoint you want to gossip a payload to, for instance, whereas you can't do anything useful with a local HTTP or NFC endpoint until the host tells you who it is. Beyond that, it's the exact same payload formats and responses, with gossip treating transmissions as blackboxes that just work (see Gossip).
 
 
 ### Endpoint Selection
@@ -83,6 +83,35 @@ Apps SHOULD support sending payloads to and consuming payloads from the email no
     @! John: did:key:z6MkCMyGw... <tel:+1-123-456-7890>
 
 Apps MUST support optional formatting of phone numbers for human-readability in the `tel` and other schemes where they get used.
+
+
+### HTTP Endpoints
+
+To send a payload as a request or a response to an HTTP endpoint, apps MUST:
+
+0. Disable response buffering if applicable, to be able to catch broken pipe and connection errors.
+
+1. Set the `Content-Type` header to `Content-Type: application/octet-stream`.
+
+2. Set the `Content-Length` header to the wire-formatted payload's byte length  (see Wire Format).
+
+3. Start the body at byte offset `0`.
+
+4. Output the raw bytes of the wire-formatted payload, without form field names.
+
+5. Await a successful flush before marking the payload as sent.
+
+Apps MAY chunk HTTP requests and responses by setting an initial `Content-Type` header to `Content-Type: multipart/mixed; boundary=<boundary>`. Apps MUST flush payloads one at a time to catch partial deliveries in that case.
+
+Apps MUST use HTTP POST to send requests.
+
+Apps MUST limit HTTP response codes to exactly two:
+
+* 403 (Forbidden), when closing the channel early. An attacker would know their payload got rejected because the connection got closed early, so a 403 does not reveal anything new or useful.
+
+* 200 (Ok), to signal that the payload arrived, whether it was accepted or not.
+
+Apps MAY piggyback on an open HTTP connection to return an HTTP response after successfully receiving an HTTP request.
 
 
 ### Custom Endpoints
