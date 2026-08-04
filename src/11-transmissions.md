@@ -190,48 +190,6 @@ As with phone endpoints, apps MUST support optional formatting of phone numbers 
 Beyond that, apps MAY support other endpoints as they see fit.
 
 
-## Bootstrap Handles
-
-Apps MUST support emitting, recognizing, and processing unencrypted bootstrap handles so ledgers can discover each other's public keys and API endpoints.
-
-A bootstrap handle's data MUST be a flat, integer-indexed CBOR map (RFC 8949). The first index (`0`) MUST be the multiformat-prefixed raw bytes of the ledger key used in its `did:key` formatted identifier (see Identifiers). Subsequent indexes, if any, MUST be scheme-prefixed API endpoints (see Address Proofs). Bootstrap handles MUST be base64url encoded without padding (RFC 4648) when shared.
-
-    {
-      0: <multiformat_prefixed_key_bytes>,
-      1: "ble:<broadcasted_uuid>:<psm>",
-      2: "http://<local_ipaddr>:<port>"
-    }
-
-Using `http` for endpoints is adequate since payloads are encrypted using HPKE, and spares end-users those pointless certificate-related warnings that browsers have long conditioned everyone to ignore.
-
-Apps MAY omit any or all of the API endpoints they expose in bootstrap handles, and SHOULD omit the addresses of non-interactive transports by default. A local endpoint makes sense in proximity-based contexts only, and sharing your email or phone number with random strangers is seldom desirable.
-
-Apps MUST support sharing and manually consuming bootstrap handles prefixed with the custom `p2pledger:` URI scheme. This format allows inserting bootstrap handles as URIs in emails, web pages, transaction envelopes (see Envelopes), NDEF (NFC Data Exchange Format), or QR codes:
-
-    p2pledger:<base64url_encoded_cbor_data>
-
-Apps MUST support sharing and manually consuming bootstrap handles as `p2pledger=` entries in mDNS/DNS-SD (RFC 6762/6763) TXT records:
-
-    p2pledger=<base64url_encoded_cbor_data>
-
-Email- and browser-based apps MAY support sharing and automatically consuming bootstrap handles as email and HTTP headers using the `P2PLedger` key:
-
-    P2PLedger: <base64url_encoded_cbor_data>
-
-(Note that corporate email gateways routinely strip headers, so apps SHOULD NOT depend on `P2PLedger` headers. They're intended as helpful workflow automations when they work, nothing more.)
-
-Email- and browser-based apps MAY support sharing and automatically consuming bootstrap handles in HTML emails and web pages as `<meta name="p2pledger">` tags:
-
-    <meta name="p2pledger" content="<base64url_encoded_cbor_data>">
-
-
-## Secure Channels
-
-Apps MUST treat all channels as insecure for Gossip and Trust purposes---even HTTPS. TLS (RFC 8446) is the only practical option to create secure channels inside browsers, on corporate networks, or on captive portal WiFi networks. It provides strong security, but it uses centralized certificate authorities that could be compromised. Using EDHOC (RFC 9528) would make sense in the scenarios where it works, but the maintenance burden of offering it for those does not. Using TLS for other purposes (see Wall Clocks) is a necessary compromise.
-
-Apps MUST use HPKE (RFC 9180) to seal messages for the recipient's ledger key when transmitting Gossip and Trust payloads. Apps MUST use HPKE _Base Mode_ so recipients can always decrypt messages and senders don't leak information about themselves in transport headers. It ensures an ephemeral key gets generated for each message. Senders will get authenticated via their signature (see Gossip, Trust, and Envelopes). The HPKE `info` parameter MUST contain raw bytes of the recipient's ledger key so the payload is contextually bound to it.
-
-
 ## Fingerprints
 
 Fingerprints are relationally salted tokens designed to identify payloads sent by known counterparties without revealing their ledger key to observers.
