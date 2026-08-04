@@ -42,7 +42,7 @@ These specifications distinguishes between interactive and non-interactive endpo
 
 * Interactive endpoints that are stream-like: The sender and the recipient open a bidirectional session and switch roles as they send data to one another. The sender gets no HTTP-like response, but can infer their payload arrived based on whether it got flushed without any connection errors. Stream-like endpoints can require senders and recipients to manage payload boundaries manually. Apps MUST use the predefined length header in such cases (see Wire Format). Bluetooth and NFC endpoints are stream-like, as would be WebRTC if apps implement it.
 
-* Non-interactive endpoints that are email-like: The sender sends their payload and knows only it was sent. The sender sometimes gets an error when it did not, but not reliably enough that they can count on it. Endpoints SHOULD manage such error messages. Email is a non-interactive endpoint, as would be files dropped in public web folders or sent through social media or internet relay chat (IRC) if apps implement those.
+* Non-interactive endpoints that are email-like: The sender sends their payload and knows only it was sent. The sender sometimes gets an error when it did not, but not reliably enough that they can count on it. Endpoints SHOULD manage such error messages. Email is a non-interactive endpoint, as would be files dropped in public web folders or sent through social media if apps implement those.
 
 In addition, these specifications distinguish between global endpoints, which are routable over the internet (public HTTP, email), and local ones, which are not (HTTP over a LAN, Bluetooth). Apps MUST NOT share local endpoint addresses inside contracts (see Address Proofs).
 
