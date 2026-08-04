@@ -138,6 +138,23 @@ What is more, OS-allocated PSMs (in the range `0x0080–0x00FF`) are dynamic. A 
 
 Beyond this, L2CAP Connection-Oriented Channels (CoC) are to Bluetooth what raw socket streams are to TCP/IP, but without any payload boundary management. Apps MUST therefore use the predefined length header when using Bluetooth L2CAP (see Wire Format).
 
+Apps MUST await a successful flush before marking Bluetooth payloads as sent.
+
+
+### Email Endpoints
+
+Apps SHOULD support email endpoints, and MUST use the standard `mailto` scheme  when sharing such endpoints in handles (see Handles):
+
+    mailto:john@acme.com
+
+To send a payload to an email endpoint, apps MUST create a multipart email and add that payload as an attachment. Apps MUST send one payload per email, and MAY chunk large payloads across emails.
+
+Apps MUST await a successful API response before marking email payloads as sent.
+
+Email endpoints are intended to enable ledger controllers to review and sign contracts on the go while getting large attachments through higher bandwidth endpoints like HTTP or Bluetooth.
+
+Apps SHOULD limit the size of unencrypted payloads to what a phone can download in 250 ms on the slowest mobile data network in operation. That means 64 kB at the time of writing due to 3G networks in the countryside. In practical terms, that effectively limits email payloads to contracts, signature envelopes, and small attachments.
+
 
 ### Custom Endpoints
 
