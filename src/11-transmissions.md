@@ -132,6 +132,39 @@ Beyond this, L2CAP Connection-Oriented Channels (CoC) are to Bluetooth what raw 
 Apps MUST await a successful flush before marking Bluetooth payloads as sent.
 
 
+### NFC Endpoints
+
+Apps SHOULD support Near-Field Communications (NFC) endpoints on applicable devices. NFC endpoints are an outlier because at the time of writing:
+
+* Practical speeds are slower than the theorical 424 kbps or higher of modern devices, because NFC processes waste most of their time waiting for 255-byte long chunks to get scheduled by the OS---one chunk at a time, with a pause in between each one.
+
+* The high-level NFC Data Exchange Format (NDEF), which abstracts away payload chunking, wraps payloads in envelopes that reduce the effective chunk size even further. Using NDEF when a client connects is needed to tell the OS to open the app or offer to download it.
+
+* Transmissions beyond the first are better sent and received as Application Defined Protocol Unit (ADPU) byte streams to avoid the signaling overhead and OS-level interference. That API requires payload chunking and reconstruction for anything larger than 255 bytes.
+
+In other words, exchanging anything other than handles and signatures by NFC is dead on arrival. Apps MUST instead limit NFC endpoint interactions to:
+
+1. An initial NDEF message containing a universal link that opens or offers to download the app (see Universal Links), immediately followed by an ADPU message containing a handle, on client connect.
+
+2. An ADPU client response containing the applicable signature envelope---and that only.
+
+In practical terms, upon getting the NFC host's initial two messages:
+
+* A client with a pre-established secure channel with the NFC host can end up with a contract that can be signed automatically (see Sessions). Apps MUST sign such contracts automatically (the NFC tap is proof of intent enough), and MUST send their signature envelope as a response in an ADPU message if the response is no larger than the host's capability container size.
+
+* Apps MUST use one of the endpoints in the handle in any other scenario.
+
+This ensures users don't need to hold their devices still for longer than 300 ms---which is as long as they typically can before shaky hands start creating connection problems. 
+
+Note that apps MUST set a capability container size in the initial NDEF message sent as NFC host. This sets the maximum size that they'll accept as a response by the client. Apps SHOULD set this size to 1 kB. That will fit most signature envelopes with a few UCAN authorizations signed using a traditional curve-based identity key, and rules out sending large ML-DSA-based signatures that wouldn't fit in the target 300 ms time window anyway.
+
+Apps MUST await a successful flush before marking NFC payloads as sent.
+
+For the rest, only Android devices are able to emulate a Type 4 Tag at the time of writing. NFC hosting on iOS only enables authorizing bank card payments, and even that requires developers to jump through hoops. It follows that, whereas any device can serve as a client doing the tapping, only Android devices can serve as an NFC host being tapped.
+
+Apps MUST NOT passively host an NFC endpoint to avoid data exposure risks. Apps MUST instead require users to start an NFC host and await a client's tap. This can be done automatically as part of a checkout, or manually as part of pairing devices (see Handshakes).
+
+
 ### Email Endpoints
 
 Apps SHOULD support email endpoints, and MUST use the standard `mailto` scheme when sharing such endpoints in handles (see Handles):
@@ -168,7 +201,7 @@ With this said, three rules are needed to avoid scattering schemes:
     @! John: did:key:z6MkCMyGw... <facebook-com:john> <x-com:john>
         <whatsapp:+1-123-456-7890> <tg:john> <matrix:john@acme.com>
 
-As with phone endpoints, apps MUST support optional formatting of phone numbers for human-readability.
+Apps MUST support optional formatting of phone numbers for human-readability.
 
 Beyond that, apps MAY support other endpoints as they see fit.
 
