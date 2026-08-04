@@ -4,31 +4,6 @@
 }{Marshall McLuhan, Understanding Media (1964)}
 
 
-## Secure Channels
-
-Transmissions in this protocol are asynchronous and transport-agnostic, so as to not depend on any infrastructure, with built-in handling of failures like lost devices, dead endpoints, handshakes that cross payloads, and other race conditions (see Gossip and Handshakes).
-
-As a result of this design choice, transmissions are stateless. Messages arrive out of order on different devices tied to the same ledger with no coordination beyond a periodic log exchange (see Synchronization). This precludes managing a ratcheting state, since four devices holding two ledgers might be communicating with one another in any order and be woefully out of sync.
-
-Asynchronous transport-agnosticism also rules out using TLS (RFC 8446) or EDHOC (RFC 9528), since those can't be used to transmit payloads using email or file drops. Hybrid public key encryption (HPKE; RFC 9180) is thus our only sensible encryption option. Its updated and post-quantum versions are active drafts at the time of writing [@IETF-HPKE; @IETF-HPKE-PQ]. Because ledgers can be hosted on more than one device, payloads get encrypted using the hybrid cryptographic envelope pattern (CEK; see Encryption).
-
-Transmission endpoints can serve multiple ledgers at the same time, and those endpoints can serve other purposes (like email). Apps therefore need a way to identify transmissions tied to this protocol, their sender, and their intended recipient. This protocol assigns fingerprints to specific senders or purposes to that end (see Fingerprints and Endpoint Discovery). These fingerprints could be used for tracking in theory, so this protocol takes several steps to shield them from view.
-
-The first of these is hash-based challenges that protect endpoints from abuses (see Challenges). Challenges are derived from fingerprint-specific tokens (see Transmission Tokens) and the payload being sent. The full fingerprint, which is not sent on the wire, is needed to configure and solve these challenges.
-
-The challenge's result and the full fingerprint get used to derive a symmetric key. The latter gets used to wrap the actual payload in an outer envelope (see Wire Format). This provides a second encryption layer that can only be pierced by knowing the full fingerprint.
-
-The point of this outer envelope is obfuscation, not confidentiality. With this said, known senders derive their fingerprints from their pre-shared keys. This means an observer can at most observe the full fingerprints used in handshakes, and knowing those depends on monitoring HTTPS, Bluetooth, and NFC traffic. The outer envelope's 64-byte symmetric key, which depends on 32 secret bytes, makes it quantum-resistant without the full fingerprint. Plus, the post-quantum keys used in handshakes and the 32-byte pre-shared keys used otherwise ensure HPKE payloads inside envelopes are quantum-resistant anyway.
-
-The last of these steps is a one-time transmission tag that allows obfuscating and deriving the full fingerprint and token data from what gets transmitted on the wire (see Transmission Tags). Tags enable recipients to read the only four bytes of the fingerprint that get XOR-obfuscated on the wire. The hash derived from the tag and the full fingerprint allows reading the XOR-obfuscated token. An integrity check allows confirming that the token is tied to the fingerprint, thus validating both. The tag doubles as an integrity check for the wire as a whole, for further protection against abuses and replay attacks.
-
-In principle, an observer could use the XOR-obfuscated bytes of fingerprints as a beacon. This risk is only theoretical, because an observer would need to know what traffic is related to this protocol to tell apart fingerprinted payloads from false positives in the larger pool of encrypted traffic. Plus, monitoring fingerprints transmitted via HTTPS, Bluetooth, or NFC is just impractical. That limits monitoring to unencrypted channels like emails and HTTP traffic on local area networks. In those cases, an observer doesn't need a fingerprint to tell them things they know already from transport metadata.
-
-Challenges are checked in constant time to avoid leaking information that might get used in side-channel attacks. Recipients then close the connections tied to failed challenges and duplicate requests to save bandwidth. Automations adjust the threat level during and after attacks (see Threat Management). Legitimate senders caught in the cross-fire get fresh tokens through throttled responses. Illegitimate requests can slip through as a result of accommodating the latter. Those would depend on an attacker completing challenges without triggering the duplicate request filter even as the threat level is rising automatically---and they'd get no response.
-
-In sum, the transmission format is high entropy from head to tail to observers, protects endpoints from abuses like distributed denial of service attacks, and enables recipients to identify the decryption key they'll need to use with HPKE before even opening the payload's envelope---for the cost of an `O(1)` look-up and a few hashes.
-
-
 ## Endpoints
 
 Transmission endpoints are functionally equivalent in that they share a common payload format, but the underlying transport they use create minor differences between them.
