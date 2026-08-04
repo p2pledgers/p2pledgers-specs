@@ -149,25 +149,6 @@ Apps SHOULD limit the size of unencrypted email payloads to what a phone can dow
 Apps MUST be mindful that email endpoints use an unencrypted channel that can leak metadata. Apps SHOULD NOT allow handshakes using email endpoints.
 
 
-### Phone Endpoints
-
-Mobile apps SHOULD support phone endpoints, and MUST use the standard `tel` scheme when sharing such endpoints in handles (see Handles):
-
-    tel:+1-123-456-7890
-
-Apps MUST support optional formatting of phone numbers for human-readability.
-
-To send a payload to an phone endpoint, apps MUST create a phone notification and add that payload as an attachment [FIXME]. Apps MUST send one payload per phone notification.
-
-Apps MUST await a successful API response before marking phone payloads as sent.
-
-Phone endpoints are intended to enable ledger controllers to review and sign contracts on the go while getting large attachments through higher bandwidth endpoints like HTTP or Bluetooth.
-
-Apps SHOULD limit the size of unencrypted phone payloads to what a phone can download in 250 ms on the slowest mobile data network in operation. That means 64 kB at the time of writing due to 3G networks in the countryside, and limits phone payloads to contracts, signature envelopes, and small attachments.
-
-Apps MUST be mindful that phone endpoints use an unencrypted channel that can leak metadata. Apps SHOULD NOT allow handshakes using phone endpoints.
-
-
 ### Custom Endpoints
 
 The only thing that matters for interoperability is that endpoints are able to interact. Vendor prefixes are thereby undesirable for schemes. Non-interactive endpoints often have stable APIs to avoid developer uproar, so any well-tested implementation will work. As to interactive endpoints, apps can just try using them to decide if they work and ignore them as dysfunctional when not (if only for a while). The protocol thus accommodates incompatible takes on how schemes work, with the details left at vendors' discretion.
