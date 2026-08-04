@@ -67,25 +67,16 @@ Apps MUST NOT send payloads to addresses they know are currently revoked.
 Apps SHOULD flag for review any payloads they sent to a revoked address before they learned it had been revoked. Recipients treat duplicate gossip payloads as network noise, so there is no harm in re-sending them---but apps SHOULD let users decide whether to do so.
 
 
-### Recommended Endpoints
-
-Apps MUST support sending payloads to and consuming payloads from interactive endpoints using the `http` or `https` scheme:
-
-    @! John: did:key:z6MkCMyGw... <https://api.acme.com>
-
-The `http` and `https` schemes are equivalent for all practical intents since payloads are encrypted either way. Supporting these schemes ensures apps can interact over LANs, and thus guarantees a minimum level of interoperability. The `http` scheme allows avoiding certificate warnings on LANs.
-
-Apps SHOULD support sending payloads to and consuming payloads via Bluetooth and NFC when those are options (see Bluetooth Endpoints and NFC Endpoints).
-
-Apps SHOULD support sending payloads to and consuming payloads from the email non-interactive endpoint (`mailto` scheme). Mobile apps SHOULD also support the phone notificattino endpoint (`tel` scheme):
-
-    @! John: did:key:z6MkCMyGw... <mailto:john@acme.com>
-    @! John: did:key:z6MkCMyGw... <tel:+1-123-456-7890>
-
-Apps MUST support optional formatting of phone numbers for human-readability in the `tel` and other schemes where they get used.
-
-
 ### HTTP Endpoints
+
+Apps MUST support http endpoints, and MUST use the standard `https` or `http` schemes as applicable when sharing such endpoints in handles (see Handles):
+
+    https://api.acme.com
+    http://<local_ipaddr>:<port>
+
+The `http` and `https` schemes are equivalent for all practical intents since payloads are encrypted either way. Supporting these schemes ensures apps can interact over LANs, and thus guarantees a minimum level of interoperability.
+
+Apps SHOULD use `http` with local addresses to avoid certificate warnings.
 
 To send a payload as a request or a response to an HTTP endpoint, apps MUST:
 
@@ -116,7 +107,7 @@ Apps MAY piggyback on an open HTTP connection to return an HTTP response after s
 
 ### Bluetooth Endpoints
 
-Apps SHOULD support Bluetooth endpoints on applicable devices, and MUST use the standard `ble` scheme when sharing those in handles (see Handles):
+Apps SHOULD support Bluetooth endpoints on applicable devices, and MUST use the standard `ble` scheme when sharing such endpoints in handles (see Handles):
 
     ble:<p2pledger_uuid>:<le_psm>
 
@@ -143,17 +134,38 @@ Apps MUST await a successful flush before marking Bluetooth payloads as sent.
 
 ### Email Endpoints
 
-Apps SHOULD support email endpoints, and MUST use the standard `mailto` scheme  when sharing such endpoints in handles (see Handles):
+Apps SHOULD support email endpoints, and MUST use the standard `mailto` scheme when sharing such endpoints in handles (see Handles):
 
     mailto:john@acme.com
 
-To send a payload to an email endpoint, apps MUST create a multipart email and add that payload as an attachment. Apps MUST send one payload per email, and MAY chunk large payloads across emails.
+To send a payload to an email endpoint, apps MUST create a multipart email and add that payload as an attachment. Apps MUST send one payload per email.
 
 Apps MUST await a successful API response before marking email payloads as sent.
 
 Email endpoints are intended to enable ledger controllers to review and sign contracts on the go while getting large attachments through higher bandwidth endpoints like HTTP or Bluetooth.
 
-Apps SHOULD limit the size of unencrypted payloads to what a phone can download in 250 ms on the slowest mobile data network in operation. That means 64 kB at the time of writing due to 3G networks in the countryside. In practical terms, that effectively limits email payloads to contracts, signature envelopes, and small attachments.
+Apps SHOULD limit the size of unencrypted email payloads to what a phone can download in 250 ms on the slowest mobile data network in operation. That means 64 kB at the time of writing due to 3G networks in the countryside, and limits email payloads to contracts, signature envelopes, and small attachments.
+
+Apps MUST be mindful that email endpoints use an unencrypted channel that can leak metadata. Apps SHOULD NOT allow handshakes using email endpoints.
+
+
+### Phone Endpoints
+
+Mobile apps SHOULD support phone endpoints, and MUST use the standard `tel` scheme when sharing such endpoints in handles (see Handles):
+
+    tel:+1-123-456-7890
+
+Apps MUST support optional formatting of phone numbers for human-readability.
+
+To send a payload to an phone endpoint, apps MUST create a phone notification and add that payload as an attachment [FIXME]. Apps MUST send one payload per phone notification.
+
+Apps MUST await a successful API response before marking phone payloads as sent.
+
+Phone endpoints are intended to enable ledger controllers to review and sign contracts on the go while getting large attachments through higher bandwidth endpoints like HTTP or Bluetooth.
+
+Apps SHOULD limit the size of unencrypted phone payloads to what a phone can download in 250 ms on the slowest mobile data network in operation. That means 64 kB at the time of writing due to 3G networks in the countryside, and limits phone payloads to contracts, signature envelopes, and small attachments.
+
+Apps MUST be mindful that phone endpoints use an unencrypted channel that can leak metadata. Apps SHOULD NOT allow handshakes using phone endpoints.
 
 
 ### Custom Endpoints
@@ -172,6 +184,8 @@ With this said, three rules are needed to avoid scattering schemes:
 
     @! John: did:key:z6MkCMyGw... <facebook-com:john> <x-com:john>
         <whatsapp:+1-123-456-7890> <tg:john> <matrix:john@acme.com>
+
+As with phone endpoints, apps MUST support optional formatting of phone numbers for human-readability.
 
 Beyond that, apps MAY support other endpoints as they see fit.
 
