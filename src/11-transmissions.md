@@ -144,24 +144,34 @@ Apps MUST NOT passively host an NFC endpoint to avoid data exposure risks. Apps 
 
 Apps SHOULD support email endpoints, and MUST use the standard `mailto` scheme when sharing such endpoints in handles (see Handles):
 
-    mailto:john@acme.com
+    mailto:john+a1b2c3d4@acme.com
 
 To send a payload to an email endpoint, apps MUST create a multipart email and add that payload as an attachment. Apps MUST send one payload per email.
 
-Apps MUST await a successful API response before marking email payloads as sent.
+Apps MUST await a successful submission acknowledgment before marking email payloads as sent.
 
-Email endpoints are intended to enable ledger controllers to review and sign contracts on the go while getting large attachments through higher bandwidth endpoints like HTTP or Bluetooth.
+Email endpoints are intended as a store-and-forward fallback option, so ledger controllers can review and sign contracts when on the go.
 
 4G LTE networks are commonplace in the countryside at the time of writing, and will be for a while longer. In typical conditions, those offer 10-50 Mbps with a 40–80 ms latency for downloads, and 1-5 Mbps uploads with a 60-120 ms latency for uploads. Ignoring latency to some degree is sound since apps aren't sending and receiving payloads in the foreground, but not at the cost of making devices feel unresponsive because of ongoing uploads and downloads in the background.
 
-For this reason, apps MUST limit what they send to and from email endpoints to contracts (always), signature envelopes (always), and small attachments (if and only if they fit), MUST NOT batch files that are 125 kB or larger (see Payload Format), and MUST keep total batch sizes to 125 kB at most before encryption. This limits payload sizes to something that a mobile device can realistically hope to upload in a second.
+Apps MUST place files that are 128 kB or larger before encryption in their own gossip batch (see Payload Format), and MUST otherwise limit gossip batches to 128 kB before encryption. In addition, apps MUST NOT send or download payloads larger than 128 kB on a network connection with limited bandwidth---wait for Wi-Fi instead. This limits transmission payload sizes to what a mobile device can realistically hope to send or download in a second.
 
-Apps MUST be mindful that email endpoints use an unencrypted channel that can leak metadata. Apps SHOULD NOT allow handshakes using email endpoints.
+Apps MUST be mindful that email endpoints are an unencrypted channel that can leak metadata. In particular, apps SHOULD be wary of revealing anything useful about the payload in the email's title or body.
+
+Apps SHOULD add an email subaddress (`<user>+<tag>@<domain>`) when the ledger controller forgets to add one, and SHOULD create a filter that moves emails with that subaddress to a dedicated folder automatically. This is to ensure ledger controllers can keep using their email address normally.
+
+Apps MAY offer an option to keep emails with payloads stored on the server as an automated backup, and SHOULD otherwise delete emails after processing.
 
 
-### Custom Endpoints
+### File Drop Endpoints
 
-The only thing that matters for interoperability is that endpoints are able to interact. Vendor prefixes are thereby undesirable for schemes. Non-interactive endpoints often have stable APIs to avoid developer uproar, so any well-tested implementation will work. As to interactive endpoints, apps can just try using them to decide if they work and ignore them as dysfunctional when not (if only for a while). The protocol thus accommodates incompatible takes on how schemes work, with the details left at vendors' discretion.
+The early fanfare about IPv6 was that it would once again allow two devices to connect directly. NAT was viewed at the time as a hacky workaround to not run out of 32-bit IPv4 addresses. The accidental security NAT provided soon became a feature---you don't want botnets port scanning mobile phones or apps draining phone batteries flat by waking them up constantly. Carriers are still dropping unsolicited inbound connections decades later, and will do so indefinitely.
+
+Combine that with restrictive firewalls and mobile operating systems that shut down sockets, and true global peer-to-peer transport options are non-existent. They all depend on a relay to establish a connection, and mobile devices mean you always need a mailbox to deliver payloads when two apps are not in use at exactly the same time. Even a stream-based transport like WebRTC depends on a drop point to have a background process deliver payloads to mobile devices.
+
+Such endpoints are thus all email-like, file drop endpoints for the purpose of this protocol.
+
+This protocol is able to accommodate incompatible takes on how they work to a large degree, so there is little point in elaborating on any of them in detail. Purely non-interactive endpoints typically have stable APIs to avoid developer uproar, so any well-tested implementation will just work. Apps can simply try the more interactive ones, and ignore those that don't as dysfunctional until the next handshake or another random event. What matters for interoperability is that endpoints can interact, so vendor-prefixing of schemes is OPTIONAL.
 
 With this said, three rules are needed to avoid scattering schemes:
 
@@ -169,16 +179,21 @@ With this said, three rules are needed to avoid scattering schemes:
 
 2. Cloud-based web folders MUST be declared using their domain as the scheme, and the unique handle as the locator:
 
-        @! John: did:key:z6MkCMyGw... <drive-google-com:AbCdE...>
+        drive-google-com:AbCdE...
 
-3. Private messages on social media MUST be declared using their URN or domain as the scheme, and the unique handle as the locator:
+3. Social media channels SHOULD be declared using their standard scheme if one exists, or using their domain as the scheme when not, and the unique handle as the locator:
 
-    @! John: did:key:z6MkCMyGw... <facebook-com:john> <x-com:john>
-        <whatsapp:+1-123-456-7890> <tg:john> <matrix:john@acme.com>
+        facebook-com:john
+        x-com:john
+        whatsapp:+1-123-456-7890
+        tg:john
+        matrix:john@acme.com
+        nostr:npub180cvv07...
+        nostr:john@acme.com
 
-Apps MUST support optional formatting of phone numbers for human-readability.
+Apps MUST mind payload sizes (like the 128 kB size limit on most Nostr relays), and MUST support optional formatting of phone numbers for human-readability.
 
-Beyond that, apps MAY support other endpoints as they see fit.
+Beyond that, apps MAY support file-drop endpoints as they see fit.
 
 
 ## Fingerprints
