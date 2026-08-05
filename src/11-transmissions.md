@@ -84,25 +84,25 @@ Apps MAY piggyback on an open HTTP connection to return an HTTP response after s
 
 Apps SHOULD support Bluetooth endpoints on applicable devices, and MUST use the standard `ble` scheme when sharing such endpoints in handles (see Handles):
 
-    ble:<p2pledger_uuid>:<le_psm>
+    ble:<service_uuid>:<le_psm>
 
 Where:
 
-* `p2pledger_uuid` is the p2pledger-specific service identifier, which is the Bluetooth equivalent of a domain name (so apps don't waste battery interacting with random smart-bulbs); and
+* `<service_uuid>` is the service identifier. Host apps MUST set its value to the p2pledger-specific service identifier or to an ephemeral 128-bit UUID that they obtained to host a client's checkout session (see Checkouts).
 
 * `le_psm` is an arbitrary low energy protocol/service multiplexer allocated by the operating system at runtime, which is the Bluetooth equivalent of a random TCP/IP port number.
 
-Apps MUST derive the p2pledger-specific service identifier using a standard UUIDv5 library, the `Namespace_DNS` constant defined in RFC 9562 or its later version, whose value is `6ba7b810-9dad-11d1-80b4-00c04fd430c8` at the time of writing, and the `p2pledger.local` domain name:
+The p2pledger-specific service identifier enables initiating handshakes to pair devices (see Endpoint Discovery). Apps MUST derive it using a standard UUIDv5 library, the `Namespace_DNS` constant defined in RFC 9562 or its later version, whose value is `6ba7b810-9dad-11d1-80b4-00c04fd430c8` at the time of writing, and the `p2pledger.local` domain name:
 
     Service_UUID = UUIDv5(Namespace_DNS, "p2pledger.local")
 
 The latter formula yields `2b88bd30-24ef-514c-9500-f62295979bfa`.
 
-Note that Bluetooth UUIDs identify service types that devices recognize rather than individual devices, so the semantics differ slightly from other addresses. Devices share their human-readable names and addresses through advertising and scan response packets.
-
-What is more, OS-allocated PSMs (in the range `0x0080–0x00FF`) are dynamic. A `ble:<p2pledger_uuid>:<le_psm>` handle in a QR code or an NFC tag is liable to go stale when its issuer opens another phone app. Apps SHOULD try to get a new PSM from `<p2pledger_uuid>` when an L2CAP connection fails or times out before giving up.
-
 Beyond this, L2CAP Connection-Oriented Channels (CoC) are to Bluetooth what raw socket streams are to TCP/IP, but without any payload boundary management. Apps MUST therefore use the predefined length header when using Bluetooth L2CAP (see Wire Format).
+
+Host apps MUST output a handle when a client connects to its p2pledger-specific service identifier. This ensures any nearby device can initiate a handshake.
+
+Host apps MUST output nothing when a client connects to an ephemeral service identifier, and MUST instead wait for a reasonable duration for the client to initiate the session. Client apps MUST send the `session_secret` that the host shared using a QR code or via NFC as a payload to start the session. Host apps MUST output a handle with the session data upon receiving the latter.
 
 Apps MUST await a successful flush before marking Bluetooth payloads as sent.
 
