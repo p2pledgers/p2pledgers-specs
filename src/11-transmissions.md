@@ -154,8 +154,6 @@ Email endpoints are intended as a store-and-forward fallback option, so ledger c
 
 4G LTE networks are commonplace in the countryside at the time of writing, and will be for a while longer. In typical conditions, those offer 10-50 Mbps with a 40–80 ms latency for downloads, and 1-5 Mbps uploads with a 60-120 ms latency for uploads. Ignoring latency to some degree is sound since apps aren't sending and receiving payloads in the foreground, but not at the cost of making devices feel unresponsive because of ongoing uploads and downloads in the background.
 
-Apps MUST place files that are 128 kB or larger before encryption in their own gossip batch (see Payload Format), and MUST otherwise limit gossip batches to 128 kB before encryption. In addition, apps MUST NOT send or download payloads larger than 128 kB on a network connection with limited bandwidth---wait for Wi-Fi instead. This limits transmission payload sizes to what a mobile device can realistically hope to send or download in a second.
-
 Apps MUST be mindful that email endpoints are an unencrypted channel that can leak metadata. In particular, apps SHOULD be wary of revealing anything useful about the payload in the email's title or body.
 
 Apps SHOULD add an email subaddress (`<user>+<tag>@<domain>`) when the ledger controller forgets to add one, and SHOULD create a filter that moves emails with that subaddress to a dedicated folder automatically. This is to ensure ledger controllers can keep using their email address normally.
