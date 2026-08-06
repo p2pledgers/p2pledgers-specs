@@ -153,7 +153,7 @@ The `uint16` codes are the IANA-registered hybrid public key encryption (HPKE; R
 
 ## Recommended Primitives
 
-On the basis of the above, apps SHOULD expose and default to a 128-bit "High Security" cipher suite (HPKE-3-KE) with regularly rotated X25519 transport keys (KEM), SHA-256 (KDF), AES-128-GCM (AEAD), and a longer-lived Ed25519 identity key for signing (see Public Keys). The 32-byte PSKs shared in quantum-resistant handshakes ensure it will be secure when (if) the quantum threat materializes.
+On the basis of the above, apps SHOULD expose and default to a 128-bit "High Security" cipher suite (HPKE-3-KE) with regularly rotated X25519 transport keys (KEM), SHA-256 (KDF), AES-128-GCM (AEAD), and a longer-lived Ed25519 identity key for signing (see Public Keys). The 32-byte PSKs shared in quantum-resistant handshakes ensure this cipher suite will be secure when (if) the quantum threat materializes---and the quantum-resistant outer envelopes keep the HPKE payloads themselves secure (see Secure Channels).
 
 Apps MUST use a quantum-resistant cipher suite during handshakes. Either of the 128-bit post-quantum cipher suites are RECOMMENDED for that purpose---the pure post-quantum ML-KEM-512 one (HPKE-11-KE), or the hybrid ML-KEM-768 + X25519 one (HPKE-9-KE) for defense-in-depth.
 
