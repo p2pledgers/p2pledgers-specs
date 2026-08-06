@@ -11,15 +11,15 @@ Transmission endpoints are functionally equivalent in that they share a common p
 
 ### Endpoint Types
 
-These specifications distinguishes between interactive and non-interactive endpoints as follows:
+These specifications distinguish between three endpoint types as follows:
 
-* Interactive endpoints that are HTTP-like: The sender sends their payload and the recipient's response signals whether it arrived using a response code or a lack of response (due to a timeout), so there is no uncertainty about delivery failures. Conversely, the recipient can infer their response arrived based on whether the socket flushed cleanly---a broken pipe or another connection error wouold signal that it did noot. HTTP endpoints are HTTP-like, as would be CoAP if apps implement it.
+* Interactive, HTTP-like endpoints, which have RESTful semantics. These qualify as interactive in that senders can tell their payload arrived from the response code or a lack thereof (due to a timeout), and recipients can infer it did from whether the socket flushed cleanly---without a broken pipe or connection error. Beyond HTTP endpoints themselves, CoAP endpoints (schemes `coap` and `coaps`) would be HTTP-like endpoints if any apps were to implement them.
 
-* Interactive endpoints that are stream-like: The sender and the recipient open a bidirectional session and switch roles as they send data to one another. The sender gets no HTTP-like response, but can infer their payload arrived based on whether it got flushed without any connection errors. Stream-like endpoints can require senders and recipients to manage payload boundaries manually. Apps MUST use the predefined length header in such cases (see Wire Format). Bluetooth and NFC endpoints are stream-like, as would be WebRTC if apps implement it.
+* Interactive, stream-like endpoints, which have a bidirectional session where the sender and recipient switch roles as they send data to one another. These endpoints have no HTTP-like semantics, but senders can infer a payload arrived from whether the socket flushed cleanly. Bluetooth and NFC endpoints are both stream-like.
 
-* Non-interactive endpoints that are email-like: The sender sends their payload and knows only it was sent. The sender sometimes gets an error when it did not, but not reliably enough that they can count on it. Endpoints SHOULD manage such error messages. Email is a non-interactive endpoint, as would be files dropped in public web folders or sent through social media if apps implement those.
+* Non-interactive, email-like endpoints, which are fire-and-forget. Senders can only tell their payload was sent successfully. Senders might get an error when it did not arrive, but not reliably enough that they can count on it. File drop endpoints are all email-like.
 
-In addition, these specifications distinguish between global endpoints, which are routable over the internet (public HTTP, email), and local ones, which are not (HTTP over a LAN, Bluetooth). Apps MUST NOT share local endpoint addresses inside contracts (see Address Proofs).
+In addition, these specifications distinguish between global endpoints, which are routable over the internet (public HTTP, email), and local ones, which are not (HTTP over a LAN, Bluetooth). Apps MUST NOT share local endpoint addresses inside handshakes (see Handshakes).
 
 These endpoints are all functionally equivalent. The slight differences between them tie into transmission queues and interaction flows. You know the identity key of the global HTTP endpoint you want to gossip a payload to, for instance, whereas you can't do anything useful with a local HTTP or NFC endpoint until the host tells you who it is. Beyond that, it's the exact same payload formats and responses, with gossip treating transmissions as blackboxes that just work (see Gossip).
 
@@ -28,7 +28,11 @@ These endpoints are all functionally equivalent. The slight differences between 
 
 End-users often enter addresses in their preferred communication order, so apps SHOULD monitor which they enter first, SHOULD allow them to reorder them, and SHOULD reflect their preferred ordering when communicating addresses.
 
-Conversely, apps SHOULD monitor the order they receive addresses in, and SHOULD factor that in when selecting endpoints to send payloads to, with two caveats:
+Conversely, apps SHOULD monitor the order they receive addresses in, and SHOULD factor that in as a tie breaker when selecting endpoints to send payloads to.
+
+Beyond that:
+
+* Apps MUST prefer the interactive endpoint that is in use, if any; and
 
 * Apps SHOULD prefer local endpoints when one is available; and
 
@@ -42,16 +46,33 @@ Apps MUST NOT send payloads to addresses they know are currently revoked.
 Apps SHOULD flag for review any payloads they sent to a revoked address before they learned it had been revoked. Recipients treat duplicate gossip payloads as network noise, so there is no harm in re-sending them---but apps SHOULD let users decide whether to do so.
 
 
+### Endpoint Discovery
+
+Apps discover unknown endpoints:
+
+* By scanning for endpoints that are being advertised on local networks (HTTP, Bluetooth), or connecting to them directly (NFC); or
+
+* Through handles shared using QR codes, via NFC, and in contract files (see Handles).
+
+* As `p2pledger:<address>` handles in other contexts, where `<address>` is a global HTTP or email endpoint address.
+
+Apps MUST support consuming handles prefixed with the custom `p2pledger:` URI scheme.
+
+
 ### HTTP Endpoints
 
-Apps MUST support http endpoints, and MUST use the standard `https` or `http` schemes as applicable when sharing such endpoints in handles (see Handles):
+Apps MUST support HTTP endpoints, and MUST use the standard `https` and `http` schemes as applicable when sharing such endpoints in handles (see Handles):
 
-    https://api.acme.com
-    http://<local_ipaddr>:<port>
+    https://<global_address>
+    http://<local_address>:<port>
 
-The `http` and `https` schemes are equivalent for all practical intents since payloads are encrypted either way. Supporting these schemes ensures apps can interact over LANs, and thus guarantees a minimum level of interoperability.
+Where:
 
-Apps SHOULD use `http` with local addresses to avoid certificate warnings.
+* `<global_address>` is an HTTP endpoint with a Fully Qualified Domain Name (FQDN). Apps MUST NOT allow users to enter an IP address as an HTTP endpoint, MUST NOT expose UPnP IGD to end-users, and MUST ignore HTTP endpoints passed using a non-local IP address. The FQDN requirement is intended as a static IP address guarantee to spare users and vendors a lot of UPnP IGD-related misery. (Power users that use UPnP IGD with a domain name seldom need support.) Apps MUST use secure `https` with global endpoints.
+
+* `<local_address>` is an IP address broadcast via mDNS / DNS-SD / Bonjour or shared in a QR code or via NFC (see Checkouts). Apps MUST use plain `http` with local HTTP endpoints to avoid certificate warnings.
+
+* `<port>` is a port number. Apps MAY use the port 0 trick to let the operating system assign a random port number.
 
 To send a payload as a request or a response to an HTTP endpoint, apps MUST:
 
@@ -67,17 +88,23 @@ To send a payload as a request or a response to an HTTP endpoint, apps MUST:
 
 5. Await a successful flush before marking the payload as sent.
 
-Apps MAY chunk HTTP requests and responses by setting an initial `Content-Type` header to `Content-Type: multipart/mixed; boundary=<boundary>`. Apps MUST flush payloads one at a time to catch partial deliveries in that case.
+Apps MUST send HTTP POST requests.
 
-Apps MUST use HTTP POST to send requests.
+Host apps MAY piggyback on the open HTTP connection to return an HTTP response after successfully receiving an HTTP request.
+
+Host apps MAY chunk HTTP responses by setting an initial `Content-Type` header to `Content-Type: multipart/mixed; boundary=<boundary>` and flushing payloads one at a time to catch partial deliveries in that case. This enables a host to send more than one payload in response to a single request, without requiring either side to hold onto session-related state.
 
 Apps MUST limit HTTP response codes to exactly two:
 
 * 403 (Forbidden), when closing the channel early. An attacker would know their payload got rejected because the connection got closed early, so a 403 does not reveal anything new or useful.
 
-* 200 (Ok), to signal that the payload arrived, whether it was accepted or not.
+* 200 (OK), to signal that the payload arrived, whether it was accepted or not.
 
-Apps MAY piggyback on an open HTTP connection to return an HTTP response after successfully receiving an HTTP request.
+Apps MUST output a handle upon receiving an empty POST request to their HTTP or HTTPS endpoint. This allows initiating handshakes via HTTP.
+
+Client apps MUST set the `<session_secret>` that their host shared in a QR code or via NFC as a `P2PLedger-Session: <session_secret>` header with an empty HTTP POST to retrieve their session (use the raw string value, without quotes). Host apps MUST output a handle with the session data upon receiving the latter.
+
+Apps MUST use the service type `_p2pledger._tcp` when advertising their local HTTP endpoints via mDNS / DNS-SD / Bonjour, and MUST register them using their local endpoint's `<local_address>` and `<port>`.
 
 
 ### Bluetooth Endpoints
@@ -90,21 +117,21 @@ Where:
 
 * `<service_uuid>` is the service identifier. Host apps MUST set its value to the p2pledger-specific service identifier or to an ephemeral 128-bit UUID that they obtained to host a client's checkout session (see Checkouts).
 
-* `le_psm` is an arbitrary low energy protocol/service multiplexer allocated by the operating system at runtime, which is the Bluetooth equivalent of a random TCP/IP port number.
+* `<le_psm>` is an arbitrary low energy protocol/service multiplexer allocated by the operating system at runtime.
 
-The p2pledger-specific service identifier enables initiating handshakes to pair devices (see Endpoint Discovery). Apps MUST derive it using a standard UUIDv5 library, the `Namespace_DNS` constant defined in RFC 9562 or its later version, whose value is `6ba7b810-9dad-11d1-80b4-00c04fd430c8` at the time of writing, and the `p2pledger.local` domain name:
+L2CAP Connection-Oriented Channels (CoC) are the Bluetooth equivalent of raw socket streams, but without payload boundary management. Apps MUST therefore use the predefined length header when using Bluetooth (see Wire Format).
+
+Apps MUST await a successful flush before marking Bluetooth payloads as sent.
+
+Host apps MUST output a handle when a client connects to its p2pledger-specific service identifier. This allows initiating handshakes via Bluetooth.
+
+Host apps MUST output nothing when a client connects to an ephemeral service identifier, and MUST instead wait for a reasonable duration for the client to retrieve their session. Client apps MUST send the `<session_secret>` that their host shared using a QR code or via NFC as a payload to retrieve their session. Host apps MUST output a handle with the session data upon receiving the latter.
+
+The p2pledger-specific service identifier enables initiating handshakes to pair devices (see Endpoint Discovery). Apps MUST derive it using a standard UUIDv5 library, the `NameSpace_DNS` constant defined in RFC 9562 or its later version, whose value is `6ba7b810-9dad-11d1-80b4-00c04fd430c8` at the time of writing, and the `p2pledger.local` domain name:
 
     Service_UUID = UUIDv5(Namespace_DNS, "p2pledger.local")
 
 The latter formula yields `2b88bd30-24ef-514c-9500-f62295979bfa`.
-
-Beyond this, L2CAP Connection-Oriented Channels (CoC) are to Bluetooth what raw socket streams are to TCP/IP, but without any payload boundary management. Apps MUST therefore use the predefined length header when using Bluetooth L2CAP (see Wire Format).
-
-Host apps MUST output a handle when a client connects to its p2pledger-specific service identifier. This ensures any nearby device can initiate a handshake.
-
-Host apps MUST output nothing when a client connects to an ephemeral service identifier, and MUST instead wait for a reasonable duration for the client to initiate the session. Client apps MUST send the `session_secret` that the host shared using a QR code or via NFC as a payload to start the session. Host apps MUST output a handle with the session data upon receiving the latter.
-
-Apps MUST await a successful flush before marking Bluetooth payloads as sent.
 
 
 ### NFC Endpoints
@@ -144,54 +171,75 @@ Apps MUST NOT passively host an NFC endpoint to avoid data exposure risks. Apps 
 
 Apps SHOULD support email endpoints, and MUST use the standard `mailto` scheme when sharing such endpoints in handles (see Handles):
 
-    mailto:john+a1b2c3d4@acme.com
+    mailto:<user>+<tag>@<domain>
 
-To send a payload to an email endpoint, apps MUST create a multipart email and add that payload as an attachment. Apps MUST send one payload per email.
+With the usual email `<user>`, `<tag>`, and `<domain>` semantics.
+
+To send a payload to an email endpoint, apps MUST create a multipart email and add that payload as an attachment. Apps MUST attach at most one payload per email.
 
 Apps MUST await a successful submission acknowledgment before marking email payloads as sent.
 
-Email endpoints are intended as a store-and-forward fallback option, so ledger controllers can review and sign contracts when on the go.
+Apps MUST add an email subaddress (the `<tag`> in `<user>+<tag>@<domain>`) when the ledger controller forgets to add one, and SHOULD create a filter that moves emails with that subaddress to a dedicated folder automatically. This ensures ledger controllers can keep using their email address normally. Apps SHOULD NOT use `+p2pledger` or anything based on their app's name for this, since it would be a dead giveaway used as a tracking beacon. (Use a random dictionary word in the ledger controller's language, for instance.)
 
-4G LTE networks are commonplace in the countryside at the time of writing, and will be for a while longer. In typical conditions, those offer 10-50 Mbps with a 40–80 ms latency for downloads, and 1-5 Mbps uploads with a 60-120 ms latency for uploads. Ignoring latency to some degree is sound since apps aren't sending and receiving payloads in the foreground, but not at the cost of making devices feel unresponsive because of ongoing uploads and downloads in the background.
+Email servers sometimes (though not always) send delivery error messages. Apps SHOULD catch such error messages by scanning for the email subaddress they are tracking, SHOULD ignore the offending addresses until the next handshake, and SHOULD ignore serial offenders permanently.
 
-Apps MUST be mindful that email endpoints are an unencrypted channel that can leak metadata. In particular, apps SHOULD be wary of revealing anything useful about the payload in the email's title or body.
+Apps MUST output a handle when the email subaddress they're tracking receives an email with no payload attached. This allows initiating handshakes via email.
 
-Apps SHOULD add an email subaddress (`<user>+<tag>@<domain>`) when the ledger controller forgets to add one, and SHOULD create a filter that moves emails with that subaddress to a dedicated folder automatically. This is to ensure ledger controllers can keep using their email address normally.
+Client apps MUST set the `<session_secret>` that their host shared in a QR code or via NFC as the first line of the email body to retrieve their session. Host apps MUST output a handle with the session data upon receiving the latter.
+
+Note that email clients and servers might block or flag emails with no subject and no content as suspicious---particularly handshake emails with no attachment either. Apps SHOULD therefore set a subject and a body.
+
+Also note that email endpoints use an unencrypted channel that leaks metadata. Apps SHOULD be wary of revealing anything useful about what's in the payload in the email's subject or body. Apps MAY use a *local* LLM to generate an email. (Have it write a fictional story one paragraph at a time, for instance.)
 
 Apps MAY offer an option to keep emails with payloads stored on the server as an automated backup, and SHOULD otherwise delete emails after processing.
+
+Note that corporate email gateways tend to silently drop emails that contain encrypted payloads they cannot inspect. Vendors that want to work around the latter SHOULD coordinate and define a custom scheme (or more) to standardize how to embed payloads inside media files. (Steganography libraries have too many shortfalls at the time of writing, but the field is evolving quickly.)
 
 
 ### File Drop Endpoints
 
-The early fanfare about IPv6 was that it would once again allow two devices to connect directly. NAT was viewed at the time as a hacky workaround to not run out of 32-bit IPv4 addresses. The accidental security NAT provided soon became a feature---you don't want botnets port scanning mobile phones or apps draining phone batteries flat by waking them up constantly. Carriers are still dropping unsolicited inbound connections decades later, and will do so indefinitely.
+The early fanfare about IPv6 was that it would once again allow two devices to connect directly. NAT was viewed at the time as a hacky workaround to not run out of 32-bit IPv4 addresses. The accidental security NAT provided soon became a feature---you don't want botnets port scanning mobile phones or apps draining phone batteries flat by waking them up constantly.
 
-Combine that with restrictive firewalls and mobile operating systems that shut down sockets, and true global peer-to-peer transport options are non-existent. They all depend on a relay to establish a connection, and mobile devices mean you always need a mailbox to deliver payloads when two apps are not in use at exactly the same time. Even a stream-based transport like WebRTC depends on a drop point to have a background process deliver payloads to mobile devices.
+Carriers are still dropping unsolicited inbound connections decades later, and will do so indefinitely. This comes on top of restrictive firewalls and mobile operating systems that shut down sockets.
 
-Such endpoints are thus all email-like, file drop endpoints for the purpose of this protocol.
+True global peer-to-peer transport options are non-existent as a result. Every option depends on a relay to establish a connection, and every option depends on a mailbox to deliver payloads when two mobile apps are not in use at exactly the same time. Every option is re-inventing email with a twist. These endpoints are thus all non-interactive and fire-and-forget for our purpose.
 
-This protocol is able to accommodate incompatible takes on how they work to a large degree, so there is little point in elaborating on any of them in detail. Purely non-interactive endpoints typically have stable APIs to avoid developer uproar, so any well-tested implementation will just work. Apps can simply try the more interactive ones, and ignore those that don't as dysfunctional until the next handshake or another random event. What matters for interoperability is that endpoints can interact, so vendor-prefixing of schemes is OPTIONAL.
+This protocol is able to accommodate incompatible takes on how they work to a large degree, so there is little point in elaborating on any of them in detail. RESTful endpoints typically have stable APIs to avoid developer uproar, so any well-tested implementation will work. Apps can simply try the odd stream-like ones, and ignore those that don't as dysfunctional until the next handshake or another random event. What matters for interoperability is that endpoints can interact, so vendor-prefixing of schemes is OPTIONAL.
 
 With this said, three rules are needed to avoid scattering schemes:
 
 1. Apps MUST replace dots (`.`) with dashes (`-`) inside schemes derived from domain names, and MUST NOT use custom schemes with dots. RFC 3986 technically allows dots in URI schemes, but support outside of OS-level parsing and app routing is scarce due to fragile regular expressions and the abuse of custom schemes in phishing scams. Contracts get rendered outside of apps (see Contract Files), so dots in URI schemes are best avoided.
 
-2. Cloud-based web folders MUST be declared using their domain as the scheme, and the unique handle as the locator:
+2. Cloud-based web folders SHOULD be declared using their domain as the scheme, and the unique handle as the locator:
 
+        <scheme>:<handle>
         drive-google-com:AbCdE...
 
-3. Social media channels SHOULD be declared using their standard scheme if one exists, or using their domain as the scheme when not, and the unique handle as the locator:
+3. Social media channels and other social drop sites SHOULD be declared using their standard scheme if one exists, or using their domain as the scheme when not, and the valid handle (in any valid format) as the locator:
 
+        <scheme>:<handle>
         facebook-com:john
         x-com:john
         whatsapp:+1-123-456-7890
         tg:john
-        matrix:john@acme.com
+        matrix:@john:acme.com
+        matrix:u/john:acme.com
         nostr:npub180cvv07...
         nostr:john@acme.com
 
-Apps MUST mind payload sizes (like the 128 kB size limit on most Nostr relays), and MUST support optional formatting of phone numbers for human-readability.
+Apps MUST support optional formatting of phone numbers for human-readability. Storing them in E.164 format is fine.
 
-Beyond that, apps MAY support file-drop endpoints as they see fit.
+Apps MUST NOT exceed the payload sizes specific to the file drop endpoint being used (such as the 128 kB size limit on most Nostr relays). Too large files can always wait until the next interaction.
+
+The API semantics will depend on the exact endpoint. APIs are usually RESTful, and thus HTTP-like, if with a drop point. WebRTC and local radio-based meshes are stream-like for their interactive half, but delivering payloads to mobile devices that can't reliably wake up and open a socket depends on a drop point.
+
+Endpoints SHOULD catch delivery error messages when applicable and handle them the same way email endpoints do: ignore the offending addresses until the next handshake, and ignore serial offenders permanently.
+
+Apps SHOULD NOT add handle output semantics to file drop endpoints. Few of them are able to accommodate receiving no payload or a zero-length one anyway. Local endpoints cover in-person handshakes, and HTTP and email endpoints cover remote ones already.
+
+Apps SHOULD NOT add session semantics to file drop endpoints. Local endpoints cover checkouts at store counters, and global HTTP endpoints cover the remote ones done by sharing a QR code by email or during a live stream.
+
+Beyond that, apps MAY support file drop endpoints as they see fit.
 
 
 ## Fingerprints
