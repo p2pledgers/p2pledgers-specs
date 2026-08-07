@@ -56,7 +56,24 @@ Apps discover unknown endpoints:
 
 * As `p2pledger:<address>` handles in other contexts, where `<address>` is a global HTTP or email endpoint address.
 
-Apps MUST support consuming handles prefixed with the custom `p2pledger:` URI scheme.
+Apps MUST support consuming global HTTP and email endpoint addresses prefixed with the custom `p2pledger:` URI scheme.
+
+
+### QR Codes
+
+Apps MUST support sharing handles using QR codes to bootstrap interactions with one another.
+
+Apps MUST use `base45` when encoding handles for QR codes. It was specifically designed to allow using Alphanumeric mode (5.5 bits per character) instead of Byte mode (8 bits per character) inside QR codes. This produces smaller images that work better when scanned with dirty camera lenses from broken screens in poor light conditions.
+
+Apps SHOULD NOT put handles larger than 200 bytes inside QR codes. Apps SHOULD limit handles intended for QR codes to containing a few addresses at most, and a `session_secret` if applicable (see Sessions). Conversely, such handles MUST NOT contain a token (which becomes stale) or session data (which clients will retrieve through the `session_secret`).
+
+Apps MUST prefix the custom `P2PLEDGER:` URI scheme (since lowercase letters are not part of the alphabet) to the `base45`-encoded handle to get the final data that will get turned into a QR code using Alphanumeric mode:
+
+    P2PLEDGER:<base45_encoded_cbor>
+
+Apps MUST support consuming handles prefixed with the custom `P2PLEDGER:` URI scheme shared using QR codes. Apps MAY register this uppercase scheme (which is always followed by a `base45` encoded CBOR) as distinct from to the lowercase `p2pledger:` scheme (which is always followed by an endpoint address).
+
+`Base45` encodes every 2 bytes of raw input into 3 characters of output, so a 200-byte CBOR becomes `3 * 200 / 2 = 300` characters. With the 10 byte prefix, that translates to `310 * 5.5 = 1705` bits in alphanumerical mode. The 17 bits for the QR code signaling brings the total to 1722 bits, or 216 bytes. Error correction is needed on top. Level M (typical for a screen), which corrects up to 15%, fits the 216 code words in a Version 12 (65 x 65) QR code. A typical CBOR has a local IP address with a port number (28 bytes), a Bluetooth address (46 bytes), and a `session_secret` (32 bytes), so a roughly 130 bytes of CBOR. That becomes 137 bytes of code words after encoding, which fits in a Version 9 (53 x 53) QR code.
 
 
 ### HTTP Endpoints
@@ -146,27 +163,29 @@ Apps SHOULD support Near-Field Communications (NFC) endpoints on applicable devi
 
 * Transmissions are better sent and received as Application Protocol Data Unit (APDU) byte streams to avoid signaling overhead that would make NFC even slower and OS-level interference. APDU APIs are as low-level as they get, and require payload chunking and reconstruction for anything larger than 255 bytes.
 
-In a typical card payment, NFC readers drive contactless NFC interactions. The reader asks the card what it can do. The card returns a list of Application Identifiers (AIDs). The reader picks one. The card tells it what it needs. The reader gives it the details (typically amount, currency, timestamp, and nonce). The card tells it how to get its card details. The reader then asks for them, and wraps things up by asking for a signed payload.
+With this in mind, NFC readers drive contactless NFC interactions in a typical card payment. The reader asks the card what it can do. The card returns a list of Application Identifiers (AIDs). The reader picks one. The card tells it what it needs. The reader gives it the details (such as amount, currency, timestamp, and nonce). The card then tells it how to get its card details. The reader asks for them, and wraps things up by asking for a signed payload.
 
-Mobile host apps initiate that process. Typically, the host will see the client taking their phone out, so will anticipate needing NFC or a QR code---the host hits a button that enables both on their terminal and shows the order's details and an invitation to tap their device with the screen oriented so the customer can review them. The host will necessarily have asked if this is a card payment or not at this point, since it would require using the card terminal or another app. Alternatively, the host will ignore all this and hit a pair device button. Either way, host apps MUST select this protocol's AID as their initial command.
+Mobile host apps initiate that process. Typically, the host will see the client taking their phone out, so will anticipate needing NFC or a QR code---the host hits a button that enables both on their terminal and shows the order's details with the QR code and an invitation to tap their device with the screen oriented so the customer can review their order. The host will necessarily have asked if this is a card payment or not at this point, since it would require using the card terminal or another app. As such, apps MUST select this protocol's AID as their initial command.
 
 Apps MUST register themselves as a handler for the Application Identifier (AID) `F05032504C6564676572`---which corresponds to the `0xF0` proprietary AID prefix followed by the `P2PLedger` ASCII sequence---and use it for this protocol.
 
 Mobile client apps kick in upon receiving the host app's first command: the OS opens the app's background NFC handler and lets it handle the request---without unlocking, if using biometric identification. Apps MUST require authentication if the OS doesn't as a matter of course.
 
-The client app MUST respond with a 90 00 (Success) response once open, and the usual protocol checkout flow proceeds with a twist.
+The client app MUST respond with a `90 00` (Success) response once open, and the usual protocol checkout flow proceeds with a twist.
 
 The twist is that NFC is too slow to transfer anything more than a handle and a *small* signature envelope in under 300 ms---which is as long as typical users can hold a device still before shaky hands start creating connection problems or concerns about what's taking so long kick in.
 
-With this in mind, host apps MUST send a handle (see Handles) as a raw binary APDU with the same data as a QR code, plus the session's data if applicable.
+With this in mind, host apps MUST send a handle (see Handles) as a raw binary APDU with the same data as handles shared using a QR code (see QR Codes), plus the session's data if applicable.
 
 Client apps with a pre-established secure channel with their host app might end up with a contract that is beneath the ledger controller's maximum NFC expense threshold. Apps MUST sign such contracts automatically, because the NFC tap is proof of intent enough.
 
 Client apps MUST, if this contract's signature envelope is under 1 kB in size, gossip the signature envelope (and only that) in the usual wire format as a raw binary APDU. Host apps MUST emit the NFC beep upon signing their own copy if it passed due diligence (raise an invalid payment error if not), but MUST NOT send it via NFC---host apps MUST gossip that receipt using another channel.
 
-Client apps MUST fall back to using one of the endpoints listed in the handle, after sending an APDU with the standard 69 85 Conditions of Use Not Satisfied code to terminate the NFC interaction, in any other scenario.
+In any other scenario, client app background NFC handlers MUST terminate the NFC interaction by sending an APDU with the standard `69 85` Conditions of Use Not Satisfied code, MUST wake up their app as a background process if needed, and MUST continue their interaction using whichever other endpoint was provided in the handle.
 
 The 1 kB size limit deliberately rules out sending ML-DSA signatures. Vendors SHOULD coordinate to increase this limit when NFC becomes able to comfortably gossip an ML-DSA signed signature envelope.
+
+Apps MUST also support the host hitting a pair device button. The flow is like the above, but without any session data. The NFC handle is used instead of a QR code handle to initialize a handshake. Client apps MUST then terminate the NFC interaction immediately and continue their interaction using another endpoint in the handle.
 
 Apps MUST await a successful flush before marking NFC payloads as sent.
 
