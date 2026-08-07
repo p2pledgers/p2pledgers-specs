@@ -6,7 +6,7 @@
 
 ## Endpoints
 
-Transmission endpoints are functionally equivalent in that they share a common payload format, but the underlying transport they use create minor differences between them.
+Transmission endpoints are functionally equivalent in that they share a common payload format, but the underlying transport they use creates minor differences between them.
 
 
 ### Endpoint Types
@@ -80,7 +80,7 @@ To send a payload as a request or a response to an HTTP endpoint, apps MUST:
 
 1. Set the `Content-Type` header to `Content-Type: application/octet-stream`.
 
-2. Set the `Content-Length` header to the wire-formatted payload's byte length  (see Wire Format).
+2. Set the `Content-Length` header to the wire-formatted payload's byte length (see Wire Format).
 
 3. Start the body at byte offset `0`.
 
@@ -127,7 +127,7 @@ Host apps MUST output a handle when a client connects to its p2pledger-specific 
 
 Host apps MUST output nothing when a client connects to an ephemeral service identifier, and MUST instead wait for a reasonable duration for the client to retrieve their session. Client apps MUST send the `<session_secret>` that their host shared using a QR code or via NFC as a payload to retrieve their session. Host apps MUST output a handle with the session data upon receiving the latter.
 
-The p2pledger-specific service identifier enables initiating handshakes to pair devices (see Endpoint Discovery). Apps MUST derive it using a standard UUIDv5 library, the `NameSpace_DNS` constant defined in RFC 9562 or its later version, whose value is `6ba7b810-9dad-11d1-80b4-00c04fd430c8` at the time of writing, and the `p2pledger.local` domain name:
+The p2pledger-specific service identifier enables initiating handshakes to pair devices (see Endpoint Discovery). Apps MUST derive it using a standard UUIDv5 library, the `Namespace_DNS` constant defined in RFC 9562 or its later version, whose value is `6ba7b810-9dad-11d1-80b4-00c04fd430c8` at the time of writing, and the `p2pledger.local` domain name:
 
     Service_UUID = UUIDv5(Namespace_DNS, "p2pledger.local")
 
@@ -136,35 +136,39 @@ The latter formula yields `2b88bd30-24ef-514c-9500-f62295979bfa`.
 
 ### NFC Endpoints
 
-Apps SHOULD support Near-Field Communications (NFC) endpoints on applicable devices. NFC endpoints are an outlier because at the time of writing:
+Apps SHOULD support Near-Field Communications (NFC) endpoints on applicable devices. NFC needs some discussion, because at the time of writing:
 
-* Practical speeds are slower than the theorical 424 kbps or higher of modern devices, because NFC processes waste most of their time waiting for 255-byte long chunks to get scheduled by the OS---one chunk at a time, with a pause in between each one.
+* Android supports Host-based Card Emulation (HCE) Type 4 Tags, which can mimic payment cards directly. iOS exposes card emulation via the iOS 18.1+ NFC & SE Platform Entitlement, which requires a security audit and paying a fee. From there, apps can run their ISO 7816-compliant Java Card Applet that implements this protocol inside the secure element.
 
-* The high-level NFC Data Exchange Format (NDEF), which abstracts away payload chunking, wraps payloads in envelopes that reduce the effective chunk size even further. Using NDEF when a client connects is needed to tell the OS to open the app or offer to download it.
+* Android and iOS both expose NFC reader APIs. Note that traditional app roles (which these specifications use in what follows) are flipped in NFC: host apps (NFC readers) are open and active, and process the transactions of client apps (NFC Type 4 tags) that may or may not be open.
 
-* Transmissions beyond the first are better sent and received as Application Defined Protocol Unit (ADPU) byte streams to avoid the signaling overhead and OS-level interference. That API requires payload chunking and reconstruction for anything larger than 255 bytes.
+* Practical speeds are slower than the theoretical 424 kbps or higher of modern devices, because NFC processes waste most of their time waiting for 255-byte long chunks to get scheduled by the OS---one chunk at a time, with a pause in between each one.
 
-In other words, exchanging anything other than handles and signatures by NFC is dead on arrival. Apps MUST instead limit NFC endpoint interactions to:
+* Transmissions are better sent and received as Application Protocol Data Unit (APDU) byte streams to avoid signaling overhead that would make NFC even slower and OS-level interference. APDU APIs are as low-level as they get, and require payload chunking and reconstruction for anything larger than 255 bytes.
 
-1. An initial NDEF message containing a universal link that opens or offers to download the app (see Universal Links), immediately followed by an ADPU message containing a handle, on client connect.
+In a typical card payment, NFC readers drive contactless NFC interactions. The reader asks the card what it can do. The card returns a list of Application Identifiers (AIDs). The reader picks one. The card tells it what it needs. The reader gives it the details (typically amount, currency, timestamp, and nonce). The card tells it how to get its card details. The reader then asks for them, and wraps things up by asking for a signed payload.
 
-2. An ADPU client response containing the applicable signature envelope---and that only.
+Mobile host apps initiate that process. Typically, the host will see the client taking their phone out, so will anticipate needing NFC or a QR code---the host hits a button that enables both on their terminal and shows the order's details and an invitation to tap their device with the screen oriented so the customer can review them. The host will necessarily have asked if this is a card payment or not at this point, since it would require using the card terminal or another app. Alternatively, the host will ignore all this and hit a pair device button. Either way, host apps MUST select this protocol's AID as their initial command.
 
-In practical terms, upon getting the NFC host's initial two messages:
+Apps MUST register themselves as a handler for the Application Identifier (AID) `F05032504C6564676572`---which corresponds to the `0xF0` proprietary AID prefix followed by the `P2PLedger` ASCII sequence---and use it for this protocol.
 
-* A client with a pre-established secure channel with the NFC host can end up with a contract that can be signed automatically (see Sessions). Apps MUST sign such contracts automatically (the NFC tap is proof of intent enough), and MUST send their signature envelope as a response in an ADPU message if the response is no larger than the host's capability container size.
+Mobile client apps kick in upon receiving the host app's first command: the OS opens the app's background NFC handler and lets it handle the request---without unlocking, if using biometric identification. Apps MUST require authentication if the OS doesn't as a matter of course.
 
-* Apps MUST use one of the endpoints in the handle in any other scenario.
+The client app MUST respond with a 90 00 (Success) response once open, and the usual protocol checkout flow proceeds with a twist.
 
-This ensures users don't need to hold their devices still for longer than 300 ms---which is as long as they typically can before shaky hands start creating connection problems. 
+The twist is that NFC is too slow to transfer anything more than a handle and a *small* signature envelope in under 300 ms---which is as long as typical users can hold a device still before shaky hands start creating connection problems or concerns about what's taking so long kick in.
 
-Note that apps MUST set a capability container size in the initial NDEF message sent as NFC host. This sets the maximum size that they'll accept as a response by the client. Apps SHOULD set this size to 1 kB. That will fit most signature envelopes with a few UCAN authorizations signed using a traditional curve-based identity key, and rules out sending large ML-DSA-based signatures that wouldn't fit in the target 300 ms time window anyway.
+With this in mind, host apps MUST send a handle (see Handles) as a raw binary APDU with the same data as a QR code, plus the session's data if applicable.
+
+Client apps with a pre-established secure channel with their host app might end up with a contract that is beneath the ledger controller's maximum NFC expense threshold. Apps MUST sign such contracts automatically, because the NFC tap is proof of intent enough.
+
+Client apps MUST, if this contract's signature envelope is under 1 kB in size, gossip the signature envelope (and only that) in the usual wire format as a raw binary APDU. Host apps MUST emit the NFC beep upon signing their own copy if it passed due diligence (raise an invalid payment error if not), but MUST NOT send it via NFC---host apps MUST gossip that receipt using another channel.
+
+Client apps MUST fall back to using one of the endpoints listed in the handle, after sending an APDU with the standard 69 85 Conditions of Use Not Satisfied code to terminate the NFC interaction, in any other scenario.
+
+The 1 kB size limit deliberately rules out sending ML-DSA signatures. Vendors SHOULD coordinate to increase this limit when NFC becomes able to comfortably gossip an ML-DSA signed signature envelope.
 
 Apps MUST await a successful flush before marking NFC payloads as sent.
-
-For the rest, only Android devices are able to emulate a Type 4 Tag at the time of writing. NFC hosting on iOS only enables authorizing bank card payments, and even that requires developers to jump through hoops. It follows that, whereas any device can serve as a client doing the tapping, only Android devices can serve as an NFC host being tapped.
-
-Apps MUST NOT passively host an NFC endpoint to avoid data exposure risks. Apps MUST instead require users to start an NFC host and await a client's tap. This can be done automatically as part of a checkout, or manually as part of pairing devices (see Handshakes).
 
 
 ### Email Endpoints
@@ -179,7 +183,7 @@ To send a payload to an email endpoint, apps MUST create a multipart email and a
 
 Apps MUST await a successful submission acknowledgment before marking email payloads as sent.
 
-Apps MUST add an email subaddress (the `<tag`> in `<user>+<tag>@<domain>`) when the ledger controller forgets to add one, and SHOULD create a filter that moves emails with that subaddress to a dedicated folder automatically. This ensures ledger controllers can keep using their email address normally. Apps SHOULD NOT use `+p2pledger` or anything based on their app's name for this, since it would be a dead giveaway used as a tracking beacon. (Use a random dictionary word in the ledger controller's language, for instance.)
+Apps MUST add an email subaddress (the `<tag>` in `<user>+<tag>@<domain>`) when the ledger controller forgets to add one, and SHOULD create a filter that moves emails with that subaddress to a dedicated folder automatically. This ensures ledger controllers can keep using their email address normally. Apps SHOULD NOT use `+p2pledger` or anything based on their app's name for this, since it would be a dead giveaway used as a tracking beacon. (Use a random dictionary word in the ledger controller's language, for instance.)
 
 Email servers sometimes (though not always) send delivery error messages. Apps SHOULD catch such error messages by scanning for the email subaddress they are tracking, SHOULD ignore the offending addresses until the next handshake, and SHOULD ignore serial offenders permanently.
 
@@ -193,7 +197,7 @@ Also note that email endpoints use an unencrypted channel that leaks metadata. A
 
 Apps MAY offer an option to keep emails with payloads stored on the server as an automated backup, and SHOULD otherwise delete emails after processing.
 
-Note that corporate email gateways tend to silently drop emails that contain encrypted payloads they cannot inspect. Vendors that want to work around the latter SHOULD coordinate and define a custom scheme (or more) to standardize how to embed payloads inside media files. (Steganography libraries have too many shortfalls at the time of writing, but the field is evolving quickly.)
+Note that corporate email gateways tend to silently drop emails that contain encrypted payloads they cannot inspect. Vendors that want to work around the latter SHOULD coordinate and define custom schemes to standardize how to embed payloads inside media files. (Steganography libraries have too many shortfalls at the time of writing, but the field is evolving quickly.)
 
 
 ### File Drop Endpoints
