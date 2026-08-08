@@ -282,32 +282,30 @@ Conceptually, authentication has two models:
 
 Our main concerns are: how can you tell that this ledger with a public key you don't know is not a malicious user, and what to do when end-users rotate keys, lose devices, or simply merge ledgers? Rephrased in real life terms, how would you prove you are you after changing your signature? Essentially, you'd show a paper with your new signature signed using an old signature, or line up people who will vouch for it as evidence. With this context out of the way:
 
-Apps MUST accommodate end-users that create and merge ledgers as they see fit across the transaction graph, and MUST accommodate end-users that lose control of their proof methods. To that end, apps MUST:
+Apps MUST accommodate end-users that create and merge ledgers as they see fit across the transaction graph, and MUST accommodate end-users that lose control of their ledgers due to lost or stolen devices. To that end, apps MUST:
 
-1. Use the ledger's current identity key as its identity in transactions and in the transaction log (see Forensics).
+1. Use the ledger's active identity key on that device as its signing key.
 
-2. Allow ledgers to sign an identity key with another as proof that the signing key endorses the signed key (see Signed Proofs). Note that endorsing can go in either or both directions (see Key Rotations and Synchronization). Because identity keys are unique to a ledger, endorsements enable merging ledgers on the same or different devices.
+2. Allow an identity key to sign another identity key as proof that the signing key endorses the signed key. Note that `/sign` authorizations can be used for this purpose (see Ledger Recovery). This enables merging ledgers on the same or different devices.
 
-3. Identify ledgers by their identity cluster, which is the set of keys that have endorsed one another, directly or indirectly, in either direction, across any number of devices. Note that an identity cluster can have more than one active identity key (one per device, essentially).
+3. Identify ledgers by their identity cluster: the ledger's active identity key and the set of identity keys that resolve back to it through chains of mutual endorsements. Note that an identity cluster hosted on more than one device will have more than one active identity key (one per device; see Identity Keys), and that any of them can sign on behalf of any of the others.
 
-4. Allow ledgers to associate their key with addresses that they control as API endpoints (url, email, other; see Address Proofs). These addresses MAY be tied to more than one ledger, so apps MUST NOT use them for authentication except as local sign-in methods (like a unique sign-in or recovery link sent to an email).
+4. Allow ledgers to permanently repudiate public keys from a repudiation date (see Key Rotations). Apps MUST invalidate any identity cluster merge endorsed by a repudiated identity key after its repudiation date (so as to invalidate hostile merges), MUST ignore any other signature from repudiated identity keys as invalid from the moment they learn the key has been invalidated, and MUST let end-users handle the fallout, if any, using disputes (see Disputes). This mirrors not disputing the existing transactions of lost credit cards, and only disputing transactions of stolen credit cards one at a time. Apps SHOULD flag transactions for review when unsynchronized states lead one device to accept a signature that another had rejected.
 
-5. Allow ledgers to permanently repudiate proofs from a specified date. This is about the proof only. Apps MUST invalidate any identity cluster merges that occurred after the specified date, and MUST let end-users handle the fallout using disputes---in the same way you'd dispute fraudulent transactions one by one when your credit card gets closed.
+5. Allow other ledgers to vouch for a ledger, as a trust signal that doubles as a recovery method (see Vouching). Vouching is a `/sign` authorization under the hood. It is the real-life equivalent of granting a power of attorney over your financial life that kicks in when you are not actively managing it yourself. As such, apps MUST NOT gamify vouching.
 
-6. Allow other ledgers to vouch for a ledger, as a trust signal that doubles as a recovery method (see Vouching).
+6. Defer to the ledger's controller when a ledger is unknown and trust is low. This is UI-based rather than prompt-based, and trust by trusted peers could tilt things enough to greenlight an unknown ledger (see Trust).
 
-7. Defer to the ledger's controller when a ledger is unknown and trust is low. This is UI-based rather than prompt-based, and trust by trusted peers could tilt things enough to greenlight an unknown ledger (see Trust).
+7. Allow ledgers to associate their key with addresses as API endpoints (url, email, other; see Endpoints and Handles). These addresses MAY be tied to more than one ledger, so apps MUST NOT use them for authentication except as local sign-in methods (like a unique sign-in or recovery link sent to an email).
 
 The specifics are at the vendors' discretion, so long as the implementation is compatible with the per-ledger, proof-based authentication approach above. The point is accommodating the instructions used in transactions and the signals needed to assess a ledger's trustworthiness (see Instructions and Trust).
-
-Apps SHOULD NOT gamify vouching for other ledgers. Vouching's principal use is to allow orderly ledger recovery when its controller is unresponsive (see Dead Ledgers). It's the equivalent of giving someone a power of attorney that kicks in when the app determines you're not actively managing your finances yourself.
 
 Beyond this, apps MAY have any number of controllers that manage any number of ledgers. Community-based payment intermediaries, for instance, are multi-user ledgers (see Communities). How this works is at the vendors' discretion, but the parallels between users and ledgers in this section and the next one are transparent enough that treating user and ledger keys the same is recommended. OS-secured private keys protected by passwords and single-use email links as proofs do the trick, with account recovery through vouching as a bonus.
 
 Single-user, single-ledger apps MAY, of course, use their user's key as their ledger's key---they're our equivalent of the sole proprietorship.
 
 
-## Ledger Recovery
+## Ledger Lockdowns
 
 Apps MUST implement a 7-day grace period whereby any proof that has been active for 7 days or more **remains valid** for the duration of the grace period after being invalidated. This enables recovering from scorched-earth scenarios where an attacker who acquires the key rotates it and burns the bridges to lock out the ledger's owner.
 
@@ -315,7 +313,7 @@ Apps MUST broadcast all proof changes to applicable address proofs (typically em
 
 Invoking an invalidated proof using such a rescue link during this grace period MUST transition the ledger into a Disputed state. When in a Disputed state, the app MUST temporarily suspend all proofs added in the past 7 days except the one used with the rescue link, and disallow signing any transaction except the one needed to re-approve or repudiate these proofs.
 
-If all else fails, the Dead Ledger process enables liquidating a locked ledger provided it was part of a community (see Communities). The process mirrors an off-graph inheritance under the supervision of an authority, with the latter holding the authorization needed to transfer the balance.
+If all else fails, a locked ledger can be liquidated in most cases (see Ledger Recovery). The process mirrors an off-graph inheritance under the supervision of the ledger's community (see Communities). The latter holds an authorization that enables transfering the balances of all counterparties, with peer-to-peer broadcasting used to discover a ledger's debtors and creditors.
 
 
 ## Authorizations
