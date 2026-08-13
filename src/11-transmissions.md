@@ -48,7 +48,7 @@ Apps SHOULD flag for review any payloads they sent to a revoked address before t
 
 ### HTTP Endpoints
 
-Apps MUST support HTTP endpoints, and MUST use the standard `https` and `http` schemes as applicable when sharing such endpoints in handles (see Handles):
+Apps MUST support HTTP endpoints, and MUST use the standard `https` and `http` schemes as applicable when sharing such endpoints:
 
     https://<global_address>
     http://<local_address>:<port>
@@ -87,7 +87,7 @@ Apps MUST limit HTTP response codes to exactly two:
 
 * 200 (OK), to signal that the payload arrived, whether it was accepted or not, to not disclose anything useful to a potential attacker.
 
-Apps MUST output a bootstrap handle as an HTTP response (see Handshakes):
+Apps MUST output a handshake token as an HTTP response (see Handshakes):
 
 * Upon receiving a valid challenge result that was configured using a valid but stale token (see Tokens and Challenges). Apps MUST send a 403 response code in this case, MUST use exponential back-off to throttle such responses so stale tokens can't be used as an attack vector, and MUST invalidate the token before the back-off can backfire as an attack vector (see Threat Management).
 
@@ -95,14 +95,14 @@ Apps MUST output a bootstrap handle as an HTTP response (see Handshakes):
 
 * Upon receiving an HTTP `GET /` request, when a ledger is actively accepting proximity-based connections, since the endpoint's tag is then implicit.
 
-Apps MAY cache bootstrap handles sent on HTTP GET requests.
+Apps MAY cache handshake tokens sent on HTTP GET requests.
 
 Apps MUST use the service type `_p2pledger._tcp` when advertising their local HTTP endpoints via mDNS / DNS-SD / Bonjour to actively accept proximity-based pairing requests (see Pairing).
 
 
 ### Bluetooth Endpoints
 
-Apps SHOULD support Bluetooth endpoints on applicable devices, and MUST use the standard `ble` scheme when sharing such endpoints in handles (see Handles):
+Apps SHOULD support Bluetooth endpoints on applicable devices, and MUST use the standard `ble` scheme when sharing such endpoints:
 
     ble:<service_uuid>:<psm>
 
@@ -122,7 +122,7 @@ L2CAP Connection-Oriented Channels (CoC) are the Bluetooth equivalent of raw soc
 
 Apps MUST await a successful flush before marking Bluetooth payloads as sent.
 
-Host apps MUST output a bootstrap handle when a client successfully connects to its p2pledger-specific service identifier (see Handshakes).
+Host apps MUST output a handshake token when a client successfully connects to its service identifier (see Handshakes).
 
 
 ### NFC Endpoints
@@ -135,7 +135,7 @@ Apps SHOULD support Near-Field Communications (NFC) endpoints on applicable devi
 
 * Practical speeds are slower than the theoretical 424 kbps or higher of modern devices, because NFC processes waste most of their time waiting for 255-byte long chunks to get scheduled by the OS---one chunk at a time, with a pause in between each one.
 
-* Transmissions are better sent and received as Application Protocol Data Unit (APDU) byte streams to avoid OS-level interferences and signaling overhead that would make NFC slower still. APDU APIs are low-level and require apps to chunk and reconstruct payloads larger than 255 bytes.
+* Transmissions are better sent and received as Application Protocol Data Unit (APDU) byte streams to avoid OS-level interferences and signaling overhead that would make NFC slower still. APDU APIs are low-level and require apps to chunk and reconstruct payloads larger than 255 bytes. Apps MUST support chunking APDU byte streams sent in either direction.
 
 With this in mind, NFC readers drive contactless NFC interactions in a typical card payment. The reader asks the card what it can do. The card returns a list of Application Identifiers (AIDs). The reader picks one. The card tells it what it needs. The reader gives it the details (such as amount, currency, timestamp, and nonce). The card then tells it how to get its card details. The reader asks for them, and wraps things up by asking for a signed payload.
 
@@ -149,28 +149,28 @@ The client app MUST respond with a standard `90 00` (Success) response on open.
 
 The usual protocol checkout flow can then proceed with a twist: NFC is too slow to transfer anything more than metadata and a small signature envelope in under 300 ms---which is as long as typical users can hold a device still before shaky hands create connection problems.
 
-As such, host apps MUST send a discovery handle in its usual Multibase-encoded and prefixed format as a raw binary APDU (see Handles). This effectively treats the NFC endpoint as a QR code reader that can also be used as a secure channel when the right conditions are met.
+As such, host apps MUST send a handle in its usual prefixed, Multibase-encoded format as the data payload of an APDU (see Handles). This effectively treats the NFC endpoint as a QR code reader that can also be used as a secure channel when the right conditions are met.
 
 Client apps that don't have a pre-existing secure channel with their host app MUST terminate the NFC interaction by sending an APDU with a standard `90 00` response. Before sending it, client apps MUST wake up their app as needed to continue their interaction using another endpoint.
 
 Apps that have a pre-existing secure channel with their host app SHOULD try to use it to complete the transaction. Either app can terminate the interaction by sending an APDU with a standard `69 85` (Conditions of Use Not Satisfied) code if anything goes wrong, with two cases. When the client app bails, it MUST wake up their app as needed to continue their interaction using another endpoint before sending it. When the host app bails, the client app MUST instead send a `90 00` response as an acknowledgement after waking up their app as needed, so the host app knows it can safely terminate the NFC field.
 
-With this in mind, client apps MUST send a session request as a raw binary APDU (see Sessions). Host apps MUST return the session data as a raw binary APDU.
+With this in mind, client apps MUST gossip a session request as the data payload of an APDU (see Sessions). Host apps MUST gossip the session data as the data payload of an APDU.
 
 Client apps that end up with *one* contract whose value is beneath the ledger's maximum NFC expense threshold MUST sign this contract automatically, since the NFC tap with authentication is proof of intent enough. Client apps MUST bail in any other situation so their ledger controller can review what they're expected to sign.
 
-Client apps MUST, if this contract's signature envelope is 1 kB or less, gossip the signature envelope (and only that) in the usual wire format as a raw binary APDU. Host apps MUST emit a beep and terminate the NFC channel upon completing their due diligence and signing (see Due Diligence), and MUST otherwise bail.
+Client apps MUST, if this contract's signature envelope is 1 kB or less, gossip the signature envelope (and only that) as the data payload of an APDU. Host apps MUST emit a beep and terminate the NFC channel upon completing their due diligence and signing (see Due Diligence), and MUST otherwise bail.
 
 Host apps MUST NOT send their signed receipt via NFC---host apps MUST instead gossip it using another endpoint.
 
 The 1 kB size limit deliberately rules out sending ML-DSA signatures. Vendors SHOULD coordinate to increase this limit when NFC becomes able to comfortably gossip an ML-DSA signed signature envelope.
 
-Apps that support NFC SHOULD support using it for pairing (see Pairing). The flow is as above, but without any session, so stops at the handle exchange.
+Apps that support NFC SHOULD support using it for pairing (see Pairing). The flow is as above, but without any session, so it stops at the handle exchange.
 
 
 ### Email Endpoints
 
-Apps SHOULD support email endpoints, and MUST use the standard `mailto` scheme when sharing such endpoints in handles (see Handles):
+Apps SHOULD support email endpoints, and MUST use the standard `mailto` scheme when sharing such endpoints:
 
     mailto:<user>+<tag>@<domain>
 
@@ -186,7 +186,7 @@ Email servers sometimes (though not always) send delivery error messages. Apps S
 
 Note that email clients and servers might block or flag emails with no subject and no content as suspicious. Apps SHOULD therefore set a subject and a body, but SHOULD also be wary of revealing anything useful about the payload in the email's subject or body since email endpoints use an unencrypted channel that leaks metadata. Apps MAY use a *local* LLM for this purpose---have one write a story one paragraph at a time, for instance.
 
-Apps MUST output a bootstrap handle as an email response (see Handshakes):
+Apps MUST output a handshake token as an email response (see Handshakes):
 
 * Upon receiving a valid challenge result that was configured using a valid but stale token (see Tokens and Challenges). Apps MUST use exponential back-off to throttle such responses so stale tokens can't be used as an attack vector, and MUST invalidate the token before the back-off can backfire as an attack vector (see Threat Management).
 
@@ -238,9 +238,101 @@ Endpoint semantics will depend on the exact endpoint. APIs are usually RESTful, 
 
 Endpoints SHOULD catch delivery error messages when applicable and handle them the same way email endpoints do: ignore the offending addresses until the next handshake, and ignore serial offenders permanently.
 
-Apps SHOULD NOT add bootstrap handle semantics to file drop endpoints, since few of them can accommodate receiving no payload or a zero-length one anyway.
+Apps SHOULD NOT add handshake token semantics to file drop endpoints, since few of them can accommodate receiving no payload or a zero-length one anyway.
 
 Beyond that, apps MAY support file drop endpoints as they see fit.
+
+
+## Endpoint Discovery
+
+Apps discover one another's endpoint addresses:
+
+* Actively, through proximity-based connections (HTTP advertised on local area networks, Bluetooth, NFC; see below); or
+
+* Through handles shared using QR codes, via NFC, inside signature envelopes such as those in contract files (see Handles); or
+
+* Through handshakes (see Handshakes).
+
+Apps MUST NOT accept active, proximity-based connections without express user consent. Mobile apps MUST require a session-based checkout (see Sessions) or hitting a Pair button (see Pairing) before advertising their endpoints. This is to ensure endpoint discovery can't be abused for tracking. Desktop apps MAY be more lenient and keep their local endpoints on and advertised at all times.
+
+
+### Handles
+
+Discovery handles are flat, integer-indexed CBOR maps that enable apps to share endpoint addresses and an optional session:
+
+    {
+      0: [
+        [<endpoint_tag>, <endpoint_address>],
+        ...
+      ],
+      1: [<host_tag>, <session_id>]
+    }
+
+Where:
+
+* `<endpoint_tag>` is the endpoint's tag (see Endpoint Tags).
+
+* `<endpoint_address>` is the endpoint's address (see Endpoints).
+
+* `<host_tag>` is the device identifier of the session holder (see Host Tags).
+
+* `<session_id>` is the raw 32 bytes of a session's identifier (see Sessions).
+
+The `<host_tag>`, `<session_id>` tuple is optional. Apps MUST NOT include one while pairing (see Pairing), and MUST add one for session-based checkout.
+
+Apps MUST share discovery handles as Multibase-encoded payloads prefixed with the custom `p2pledger:` scheme, and MUST register themselves as a handler for the latter. This format enables sharing discovery handles using QR codes, via NFC, and as links in other contexts, using the same, consistent format.
+
+Apps MUST make the `p2pledger:` prefix compatible with the encoding alphabet of the discovery handle that follows it. In particular, apps MUST uppercase the `P2PLEDGER:` prefix when using `Base45`:
+
+    p2pledger:u<base64url_cbor>
+    P2PLEDGER:R<base45_cbor>
+
+Apps MUST use `Base45` when encoding discovery handles shared in QR codes. It was designed to allow using Alphanumeric mode (5.5 bits per character) instead of Byte mode (8 bits per character) inside QR codes.
+
+Typically, an app that consumes a discovery handle will open a connection using one of the advertised endpoints and do what it needs to do. The only exception is NFC when the endpoint allows completing a transaction (see NFC Endpoints).
+
+Apps SHOULD keep discovery handle sizes including their `P2PLEDGER:` prefix to 221 characters at most when shared using QR codes. It corresponds to a 140-byte CBOR before `Base45`-encoding. The resulting Version 8-M QR codes (or smaller) ensure fast scanning even when in suboptimal conditions. 
+
+Apps SHOULD keep discovery handle sizes under 255 characters when shared via NFC so they can fit in a single APDU. It corresponds to a 183-byte CBOR before `Base64url`-encoding without padding.
+
+
+### Endpoint Tags
+
+Endpoint tags are ledger-specific endpoint identifiers that enable ledgers to directly engage with ledgers they've already established a secure channel with.
+
+An endpoint's tag is the first (leftmost) four bytes of the fingerprint of the transport key it is associated with for the purpose of issuing handshake tokens (see Fingerprints and Handshakes). Local endpoints typically use a common key for this purpose.
+
+This specific key is not used for encryption, so tends to be more static than the keys used to encrypt handshake payloads. That makes it useful to identify endpoints without being so static it becomes a long-term tracking beacon.
+
+Apps MUST complete a handshake before using an endpoint whose tag they do not recognize. Periodically rotating their handshake token keys therefore enables apps to force other apps they interact with to rotate their keys.
+
+
+### Host Tags
+
+Host tags are device-ledger-pair specific identifiers that enable ledgers that are synchronized to distribute session management among them (see Sessions and Synchronization).
+
+Apps MUST compute host tags as follows:
+
+    Hash(<endpoint_tag> || <book_id>)
+
+Where:
+
+* `Hash` is the canonical hash algorithm (see Identifiers).
+
+* `<endpoint_tag>` is the HTTP endpoint tag that the session host disclosed to synchronize session state.
+
+* `<book_id>` is the device-ledger pair's unique identifier (see Book IDs).
+
+Host tags enable this protocol to natively support:
+
+* Local sessions with local interactions: the terminal holds its own sessions and manages all of its checkout interactions directly.
+
+* Local sessions with remote interactions: the terminal holds its own sessions, while delegating part or all of its checkout interactions (like the server with the store's e-commerce website).
+
+* Remote sessions with local interactions: the terminal delegates sessions to another device (like the shop's main computer), but manages part or all of its checkout interactions directly (so customers can use Bluetooth or NFC).
+
+* Remote sessions with remote interactions: the terminal delegates sessions and its interactions, and gets notified as needed.
+
 
 
 ## Fingerprints
