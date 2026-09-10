@@ -58,9 +58,9 @@ def get_num_hashes(num_bits: int):
     return 2**num_bits
 
 #%%
-# 2. `gen_edge()` memory use and random work, modeled using `S`, the base mem size, `p` the maximum number of copies per edge, and `q`, the maximum number of read or write operations on the buffer before reducing. This work dictates the graph gen slowness. It is designed to fit in a CPU L1 cache, while overwhelming GPU registers and causing random cache misses in them. Some edges additionally depend on co-edges to serialize and decoalesce GPU warps, but the model ignores those for simplicity. `p` overstates the average memory size, while the missing co-edge modeling understates `gen_edge()`, so the two likely balance out.
+# 2. `gen_edge()` memory use and random work, modeled using `S`, the base mem size, `m`, the maximum number of random read operations on the buffer, and `p`, the average number of uint64 read operations on it. This buffer is designed to fit and stay in a CPU L1 cache during graph gen, and be too large to fit in GPU registers. Random edges also depend on co-edges to serialize and decoalesce GPU warps even more, but the model ignores those for simplicity.
 #
-# 3. The graph size, modeled by `n` and `d`. These dictate the maximum number of graph nodes (`N = 2^n`) and the exact number of edges (`E = d * 2^n`), so affects graph generation and traversal speed. The actual number of nodes is close enough to the maximum for d ranging from 2-3 that we treat it as equal.
+# 3. The graph size, modeled by `n` and `d`. These dictate the maximum number of graph nodes (`N = 2^n`) and the exact number of edges (`E = d * 2^n`), so affects graph generation and traversal speed. The actual number of nodes is close enough to the maximum for small densities so we treat it as equal.
 #%%
 
 def get_num_nodes(graph_size: int):
@@ -120,6 +120,8 @@ def get_density(num_bits: int, graph_size: int, num_graphs: float):
 # The 1 GB RAM limit comes from the fact that mobile OSes like Android trigger an immediate OutOfMemory (OOM) kill or force the system into zRAM swapping, so the practical RAM limit that an app can allocate is 1 GB.
 #
 # Practically, the challenges are intended so that the whole graph fit in L3, with edge generation done in L1/L2. The RAM numbers matter to get a sense of the performance of levels intended for future proofing.
+#
+# We also model a high-end phone and a server for comparison.
 #%%
 
 KB = 1_024
@@ -235,17 +237,23 @@ def shared_rand_write_ms(bytes: int, working_set_bytes: int, profile: str):
 #
 # Level 0 is intended for known senders, and Levels 1-3 are designed for normal traffic levels, so are deliberately simple.
 #
-# Levels 4-7 are intended to repel a modern DDoS.
+# Levels 4-7 are intended to repel a DDoS in the next 10 years.
 #
 # Levels 8-11 are intended to repel a DDoS in 10-20 years.
 #
 # Levels 12-15 are intended to repel a DDoS in 21+ years.
 #
+# The challenge is nominally about finding a hash, but the difficulty lever is memory use rather than raw computations.
+#
+# Building the graph requires random reads on a small-ish buffer. That invites maintaining a copy of that buffer per core to avoid serializing concurrent random reads. The concurrent random writes in two hash maps are not avoidable. Edges get generated as idx -> (src, dst) so there is no plausible shortcut to avoid building most or all of the graph.
+#
+# Building the filter table requires concurrent random reads on the graph table with concurrent writes in a shared hashmap. The initial node defines the graph, so there is no possible exploring different initial nodes in parallel. At best, the parallelization involves assigning unexplored nodes to new threads as nodes get discovered from the initial node.
+#
 # The threat level `l` rises like the log2 of the number of successful challenges inside a time window, with the exact growth curve at the app's discretion. What is more, there are cheap pre-flight checks before even verifying the challenge  that discard random traffic.
 #
 # In the interest of estimating the difficulty needs, an attacker might need to sustain 1k successful level 3 challenges per second for the recipient to even set the threat level to 4 and require level 4 challenges, and would need to sustain perhaps 10k level 7 challenges per second to maintain it at a level 7 for any extended period.
 #
-# Level 7 is intended to be comfortably solvable (under 250ms) by a mid-range mobile phone, and prohibitively expensive to sustain for an attacker.
+# Level 7 is intended to be comfortably solvable (under 250ms) by a mid-range mobile phone, and prohibitively expensive to sustain for an attacker owing to the memory use. To wit, hacked IoT devices cannot complete challenges that requires non-trivial amounts of memory and computations, and hacked servers that complete such challenges repeatedly tend to get promptly shut down.
 #
 #
 # ## Resolution Strategy
@@ -259,13 +267,13 @@ def shared_rand_write_ms(bytes: int, working_set_bytes: int, profile: str):
 #     forward[src] = list((dst, idx))
 #     backward[dst] = list((src, idx))
 #
-# The nominal data per edge is 12 bytes, but the two hashmaps and the lists in them add pointers and other overhead. 36 bytes in total per edge is a more realistic estimate: 4 key + 4 pointer to list + 2 hash map overhead, plus 8 data, in each direction.
+# The nominal data per edge is 12 bytes, but the two hashmaps and the lists in them add pointers and other overhead. 36 bytes in total per edge is a more realistic estimate: 4 key + 4 pointer to list + 2 hash map overhead, plus 8 data, is 18 bytes in each direction.
 #
 # This implies `36 * d * 2^n` of L3+ write traffic just to store the graph.
 #
-# If we assume a 0.75 load factor for zeroing at initialization, we need to add an initial extra `1.33 * 2 * 8 * 2^n` of L3+ write traffic, so `21.33 * 2^n`. This could be halved for smaller graphs that use 16-bit indexes instead of 32-bit ones, but we're not modeling those.
+# If we assume a 0.75 load factor for zeroing at initialization, we need to add an initial extra `2 * 8 * 2^n / .75` of L3+ write traffic, so `16 * 2^n / .75`. This could be halved for smaller graphs that use 16-bit indexes instead of 32-bit ones, but we're not modeling those.
 #
-# Using CSR is not a good option. It would add overhead to offer a smaller memory footprint, with very little benefit since we'd end up sorting the whole set to optimize looking for the circuits that pass through a specific node. It doesn't pay for itself, so we skip it.
+# Using CSR is not a good option. It would add overhead to offer a smaller memory footprint, with very little benefit since we'd end up sorting the whole set to optimize looking for the circuits that pass through a specific node. Plus, a hashmap is still needed to build it\, so the memory reduction is not that substantial. It doesn't pay for itself, so we skip it.
 #
 # Head-Next Array (Forward Star) is another option to reduce the memory use per direction. It comes at the cost of increasing the random cache‑line traffic for path expansions because the adjacency entries are then not contiguous, so we skip it too.
 #
@@ -273,52 +281,33 @@ def shared_rand_write_ms(bytes: int, working_set_bytes: int, profile: str):
 #
 # The total gen L3+ write traffic to store the graph is therefore:
 #
-#     36 * d * 2^n + 21.33 * 2^n
+#     36 * d * 2^n + 16 * 2^n / .75
 #%%
 
 def get_graph_writes_bytes(density: float, graph_size: int):
-    return math.ceil((36 * density + 16 * (4/3)) * 2**graph_size)
+    return math.ceil((36 * density + 16 / .75) * 2**graph_size)
 
 def get_graph_writes_ms(bytes: int, profile: str):
     return shared_rand_write_ms(bytes, bytes, profile)
 
 #%%
-# In addition to this, generating each edge requires making up to `p` copies of a base buffer of size `S` into L1. It gets reused from an edge gen call to the next, so it will almost certainly reside in L2 if/when it gets evicted from L1. `S` is a multiple of 64 so we can ignore cache lines for this purpose, but we do need to add extra L2 read traffic.
+# In addition to this, generating each edge requires making up to `m` random reads of a buffer of size `s` into L1. It gets reused as is from an edge gen call to the next, so it will almost certainly reside in L2 if it gets evicted from L1---which it should not. We need to add an average of `p * 64` bytes of extra L1+ read traffic, and an equivalent amount of writes for the intermediary results as the computation moves forward.
 #
-# The total edge gen L2+ read traffic is thus:
+# The total edge gen L1+ random read and write traffic (with the two counted separately) is thus:
 #
-#     p * S * d * 2^n
-#
-# Where this actually lives depends on the maximum number of copies m.
-#%%
-
-def get_buffer_max_bytes(base_buffer: int, max_copies: int):
-    return base_buffer * max_copies
-
-def get_buffer_avg_bytes(base_buffer: int, avg_copies: float):
-    return math.ceil(base_buffer * avg_copies)
-
-def get_buffer_base_copy_ms(tot_base_bytes: int, profile: str):
-    return L2_seq_read_ms(tot_base_bytes, profile)
-
-def get_buffer_full_copy_ms(tot_avg_bytes: int, profile: str):
-    return L1_seq_write_ms(tot_avg_bytes, profile)
-
-#%%
-# That buffer of size p * S then gets randomly read or written another q times per edge in total before getting reduced to the final indexes, so we add L1 traffic.
-#
-# The total edge gen L1+ read/write traffic is thus:
-#
-#     p * q * S * d * 2^n
+#     p * 64 * d * 2^n
 #
 # Where this actually lives depends on the maximum number of copies m.
 #%%
 
-def get_buffer_work_bytes(num_edges: int, avg_bytes: int, avg_ops: float):
-    return math.ceil(num_edges * avg_bytes * avg_ops)
+def get_buffer_bytes(avg_ops: float, density: float, graph_size: int):
+    return 64 * avg_ops * density * 2**graph_size
 
-def get_buffer_work_ms(tot_avg_bytes: int, max_bytes: int, profile: str):
-    return priv_rand_write_ms(tot_avg_bytes, max_bytes, profile)
+def get_buffer_read_ms(bytes: int, profile: str):
+    return L1_rand_read_ms(bytes, profile)
+
+def get_buffer_write_ms(bytes: int, profile: str):
+    return L1_seq_write_ms(bytes, profile)
 
 #%%
 # ### Path Expansions
@@ -344,7 +333,7 @@ def get_graph_reads_ms(reads_bytes: int, graph_bytes: int, profile: str):
 #%%
 # The most memory efficient way to expand the `d^7` partial forward paths is a DSF. It requires writing `d^7` paths of L3+ BW traffic, plus L1-related stack push-pop traffic that is negligible in comparison.
 #
-# Each of these `d^7` writes adds `8 * 4 B = 32` bytes to avoid random L3+ read traffic when checking for duplicate nodes inside the paths, plus 32 bytes for the edge indexes to avoid random L3+ read traffic when hashing, plus a lump 8 bytes estimate for the hash table. So `72 * d^7` bytes of writes in total. We apply the same `1.33` factor as earlier for zeroing, or `96 * d^7` bytes in total. We could add a further coherence factor to account for concurrent writes on that table, but this write term is minor compared to the reads, so we ignore it for simplicity. The `8 * 4 B` numbers can be halved for small graphs.
+# Each of these `d^7` writes adds `8 * 4 B = 32` bytes to avoid random L3+ read traffic when checking for duplicate nodes inside the paths, plus 32 bytes for the edge indexes to avoid random L3+ read traffic when hashing, plus a lump 8 bytes estimate for the hash table. So `72 * d^7` bytes of writes in total. We apply the same `1/.75` factor as earlier for zeroing, or `96 * d^7` bytes in total. We could add a further coherence factor to account for concurrent writes on that table, but this write term is minor compared to the reads, so we ignore it for simplicity. The `8 * 4 B` numbers can be halved for small graphs.
 #
 # The total filter L3+ write traffic term is thus:
 #
@@ -409,15 +398,14 @@ def gb(bytes: int):
 # ## Graph Generation speeds
 #%%
 
-def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, q: float, profile: str):
+def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, profile: str):
     level       = l
     num_bits    = b
     graph_size  = n
     density     = d
-    base_bytes  = s
-    max_copies  = m
-    avg_copies  = p
-    avg_ops     = q
+    buffer      = s
+    max_ops     = m
+    avg_ops     = p
 
     num_hashes  = get_num_hashes(num_bits)
     num_nodes   = get_num_nodes(graph_size)
@@ -426,33 +414,24 @@ def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, q: fl
 
     full_graphs = math.ceil(num_graphs)
 
-    avg_bytes   = get_buffer_avg_bytes(base_bytes, avg_copies)
-    max_bytes   = get_buffer_max_bytes(base_bytes, max_copies)
+    ops_bytes           = get_buffer_bytes(avg_ops, density, graph_size)
+    ops_ms              = get_buffer_read_ms(ops_bytes, profile) \
+                        + get_buffer_write_ms(ops_bytes, profile)
 
-    copy_base_bytes = num_edges * base_bytes
-    copy_full_bytes = num_edges * (avg_bytes - base_bytes)
-    copy_base_ms = get_buffer_base_copy_ms(copy_base_bytes, profile)
-    copy_full_ms = get_buffer_full_copy_ms(copy_full_bytes, profile)
-    copy_ms     = copy_base_ms + copy_full_ms
-    work_bytes  = get_buffer_work_bytes(num_edges, avg_bytes, avg_ops)
-    work_ms     = get_buffer_work_ms(work_bytes, max_bytes, profile)
-
-    gen_bytes   = num_edges * (base_bytes + avg_bytes)
-
-    graph_bytes = get_graph_writes_bytes(density, graph_size)
+    graph_bytes         = get_graph_writes_bytes(density, graph_size)
     graph_writes_ms     = get_graph_writes_ms(graph_bytes, profile)
 
     graph_reads_bytes   = get_graph_reads_bytes(density)
     filter_bytes        = get_filter_writes_bytes(density)
     filter_reads_bytes  = get_filter_reads_bytes(density, graph_size)
 
-    total_bytes = graph_bytes + filter_bytes
+    total_bytes         = graph_bytes + filter_bytes
 
     graph_reads_ms      = get_graph_reads_ms(graph_reads_bytes, total_bytes, profile)
     filter_writes_ms    = get_filter_writes_ms(filter_bytes, profile)
     filter_reads_ms     = get_filter_reads_ms(filter_reads_bytes, filter_bytes, profile)
 
-    gen_ms      = copy_ms + work_ms + graph_writes_ms
+    gen_ms      = ops_ms + graph_writes_ms
     search_ms   = graph_reads_ms + filter_writes_ms + filter_reads_ms
     hash_ms     = get_hash_ms(num_hashes, profile)
     total_ms    = hash_ms + full_graphs * (gen_ms + search_ms)
@@ -469,26 +448,20 @@ def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, q: fl
         "num_edges": num_edges,
         "num_graphs": num_graphs,
 
-        "base_bytes": base_bytes,
-        "max_copies": max_copies,
-        "avg_copies": avg_copies,
+        "buffer": buffer,
+        "max_ops": max_ops,
         "avg_ops": avg_ops,
 
-        "avg_bytes": avg_bytes,
-        "max_bytes": max_bytes,
-
-        "copy_ms": copy_ms,
-        "work_ms": work_ms,
-
-        "gen_bytes": gen_bytes,
-        "gen_bytes_gb": gb(gen_bytes),
-        "gen_ms": gen_ms,
+        "ops_bytes": ops_bytes,
+        "ops_bytes_mb": mb(ops_bytes),
+        "ops_ms": ops_ms,
 
         "graph_bytes": graph_bytes,
         "graph_bytes_mb": mb(graph_bytes),
         "graph_writes_ms": graph_writes_ms,
 
         "graph_reads_bytes": graph_reads_bytes,
+        "graph_reads_bytes_mb": mb(graph_reads_bytes),
         "graph_reads_ms": graph_reads_ms,
 
         "filter_bytes": filter_bytes,
@@ -496,8 +469,10 @@ def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, q: fl
         "filter_writes_ms": filter_writes_ms,
 
         "filter_reads_bytes": filter_reads_bytes,
+        "filter_reads_bytes_mb": mb(filter_reads_bytes),
         "filter_reads_ms": filter_reads_ms,
 
+        "gen_ms": gen_ms,
         "search_ms": search_ms,
         "hash_ms": hash_ms,
 
@@ -512,16 +487,16 @@ def gen_all_records(bracket: range, profile: str):
                 9 + math.floor(level / 2)
             ],
             "graph_size_range": [
-                12 + math.ceil(level / 2)
+                16 + math.ceil(level / 4)
             ],
             "density_range": [
-                3 + level / 10
+                3.5 + level / 10
             ],
-            "base_size_range": [
-                32 * 2**math.ceil((level + 1) / 4)
+            "buffer_range": [
+                256 * 2**math.ceil((level + 1) / 4)
             ],
-            "max_copies_range": [
-                2**math.ceil((level - 1) / 8)
+            "max_ops_range": [
+                2**math.ceil((level - 1) / 2)
             ],
         }
 
@@ -533,24 +508,29 @@ def gen_all_records(bracket: range, profile: str):
             set(ranges["num_bits_range"]),
             set(ranges["graph_size_range"]),
             set(ranges["density_range"]),
-            set(ranges["base_size_range"]),
-            set(ranges["max_copies_range"]),
+            set(ranges["buffer_range"]),
+            set(ranges["max_ops_range"]),
         ):
-            n = 8
+            n = 12
+            d = get_density(b, n, .1 * .8**l)
             p = (1 + m) / 2
-            q = math.ceil((1 + level) / 2)
-            yield from gen_record(l, b, n, d, s, m, p, q, profile)
+            # m = 1
+            # p = 1
+            yield from gen_record(l, b, n, d, s, m, p, profile)
 
 
 params = [
     "level", "num_bits", "graph_size", "density", "num_graphs",
-    "base_bytes", "max_copies", "avg_copies", "avg_ops",
-    # "num_edges", "num_hashes",
+    # "buffer", "max_ops",
+    "avg_ops",
+    # "num_nodes", "num_edges",
+    # "num_hashes",
 ]
 components = [
     # "max_bytes",
-    # "gen_bytes_gb",
+    "ops_bytes_mb",
     "graph_bytes_mb", "filter_bytes_mb",
+    "graph_reads_bytes_mb", "filter_reads_bytes_mb",
     "gen_ms", "search_ms", "hash_ms", "total_ms"
 ]
 
