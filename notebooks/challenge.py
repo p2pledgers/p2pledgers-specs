@@ -593,7 +593,7 @@ base = ["level"]
 params = [
     "num_bits", "graph_size", "density", "num_graphs",
     "buffer", "max_ops", "mean_ops",
-    # "num_nodes", "num_edges",
+    "num_nodes", "num_edges",
     # "num_hashes",
 ]
 components = [
@@ -692,6 +692,9 @@ df = pd.DataFrame(gen_all_records(range(16),
     # "server_shared"
     # "server_dedicated"
 ))
-df = df[base + components]
+df = df[base
+    + params
+    + components
+]
 df = df.sort_values(by=["level"], ascending=[True]) # type: ignore
 df
