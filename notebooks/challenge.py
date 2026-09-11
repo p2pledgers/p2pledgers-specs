@@ -459,7 +459,7 @@ def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, profi
     density     = d
     buffer      = s
     max_ops     = m
-    mean_ops     = p
+    mean_ops    = p
 
     num_hashes  = get_num_hashes(num_bits)
     num_nodes   = get_num_nodes(graph_size)
@@ -482,8 +482,8 @@ def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, profi
 
     total_bytes         = graph_bytes + filter_bytes
 
-    forward_reads_ms      = get_graph_reads_ms(forward_reads_bytes, total_bytes, profile)
-    backward_reads_ms      = get_graph_reads_ms(backward_reads_bytes, total_bytes, profile)
+    forward_reads_ms    = get_graph_reads_ms(forward_reads_bytes, total_bytes, profile)
+    backward_reads_ms   = get_graph_reads_ms(backward_reads_bytes, total_bytes, profile)
     filter_writes_ms    = get_filter_writes_ms(filter_bytes, profile)
     filter_reads_ms     = get_filter_reads_ms(filter_reads_bytes, filter_bytes, profile)
 
@@ -493,8 +493,8 @@ def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, profi
     hash_ms     = get_hash_ms(num_hashes, profile)
     total_ms    = build_ms + filter_ms + join_ms + hash_ms
 
-    total_writes_bytes = full_graphs * (graph_bytes + filter_bytes)
-    total_reads_bytes = (full_graphs * (ops_bytes + forward_reads_bytes)
+    writes_bytes = full_graphs * (graph_bytes + filter_bytes)
+    reads_bytes = (full_graphs * (ops_bytes + forward_reads_bytes)
                     + num_graphs * (backward_reads_bytes + filter_reads_bytes))
 
     yield {
@@ -514,27 +514,27 @@ def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, profi
         "mean_ops": mean_ops,
 
         "ops_bytes": ops_bytes,
-        "ops_bytes_mb": mb(ops_bytes),
+        "ops_mb": mb(ops_bytes),
         "ops_ms": ops_ms,
 
         "graph_bytes": graph_bytes,
-        "graph_bytes_mb": mb(graph_bytes),
+        "graph_mb": mb(graph_bytes),
         "graph_writes_ms": graph_writes_ms,
 
         "forward_reads_bytes": forward_reads_bytes,
-        "forward_reads_bytes_mb": mb(forward_reads_bytes),
+        "forward_reads_mb": mb(forward_reads_bytes),
         "forward_reads_ms": forward_reads_ms,
 
         "filter_bytes": filter_bytes,
-        "filter_bytes_mb": mb(filter_bytes),
+        "filter_mb": mb(filter_bytes),
         "filter_writes_ms": filter_writes_ms,
 
         "backward_reads_bytes": backward_reads_bytes,
-        "backward_reads_bytes_mb": mb(backward_reads_bytes),
+        "backward_reads_mb": mb(backward_reads_bytes),
         "backward_reads_ms": backward_reads_ms,
 
         "filter_reads_bytes": filter_reads_bytes,
-        "filter_reads_bytes_mb": mb(filter_reads_bytes),
+        "filter_reads_mb": mb(filter_reads_bytes),
         "filter_reads_ms": filter_reads_ms,
 
         "build_ms": build_ms,
@@ -542,10 +542,10 @@ def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, profi
         "join_ms": join_ms,
         "hash_ms": hash_ms,
 
-        "total_writes_bytes": total_writes_bytes,
-        "total_writes_bytes_mb": mb(total_writes_bytes),
-        "total_reads_bytes": total_reads_bytes,
-        "total_reads_bytes_mb": mb(total_reads_bytes),
+        "writes_bytes": writes_bytes,
+        "writes_mb": mb(writes_bytes),
+        "reads_bytes": reads_bytes,
+        "reads_mb": mb(reads_bytes),
         "total_ms": total_ms,
     }
 
@@ -569,8 +569,7 @@ def gen_all_records(bracket: range, profile: str):
                 2**math.floor(level / 2)
             ],
             "mean_ops" : [
-                math.ceil((level + 1) / 4)
-                # 1 + math.ceil(math.sqrt(level))
+                1 + (level) / 5
             ]
         }
 
@@ -587,7 +586,6 @@ def gen_all_records(bracket: range, profile: str):
             set(values["mean_ops"]),
         ):
             d = get_density(b, n, g)
-            # p = 1
             yield from gen_record(l, b, n, d, s, m, p, profile)
 
 
@@ -599,16 +597,18 @@ params = [
 ]
 components = [
     # "max_bytes",
-    # "ops_bytes_mb",
-    "graph_bytes_mb",
-    "filter_bytes_mb",
-    "forward_reads_bytes_mb",
-    "filter_reads_bytes_mb", "backward_reads_bytes_mb",
+    # "ops_mb",
+    # "graph_mb",
+    # "filter_mb",
+    # "forward_reads_mb",
+    # "filter_reads_mb", "backward_reads_mb",
     "build_ms", "filter_ms", "join_ms", "hash_ms",
-    "total_writes_bytes_mb", "total_reads_bytes_mb",
+    "writes_mb", "reads_mb",
     "total_ms"
 ]
 
+#%%
+#
 df = pd.DataFrame(gen_all_records(range(16),
     "phone_mid"
     # "phone_high"
@@ -618,17 +618,3 @@ df = pd.DataFrame(gen_all_records(range(16),
 df = df[params + components]
 df = df.sort_values(by=["level"], ascending=[True]) # type: ignore
 df
-
-# 1. GPU-breaking does not require large L1 copies
-#
-# A simpler gen_edge() can still be GPU-hostile if it forces:
-#
-# per-thread random reads from a buffer larger than GPU L2
-#
-# variable number of reads per edge
-#
-# co-edge dependencies
-#
-# irregular control flow
-#
-# So replacing the copy/edit/reduce with just a few random 4-byte reads from a large shared buffer is probably enough to wreck GPU warp efficiency. That’s worth testing.
