@@ -11,16 +11,12 @@ import pandas as pd
 def float_fmt(x):
     if x == 0:
         return "0"
-    if abs(x) >= 10:
-        return f"{round(x, 0):.0f}"
-    if abs(x) >= 1:
-        return f"{round(x, 1):g}"
-    s = f"{abs(x):.10f}"
-    _, dec = s.split('.')
-    for i, c in enumerate(dec, 1):
-        if c != '0':
-            return f"{round(x, i):g}"
-    return "0"
+    ax = abs(x)
+    if ax >= 100:
+        return f"{x:.0f}"
+    if ax >= 10:
+        return f"{x:.1f}"
+    return f"{x:.2g}"
 
 pd.set_option("display.float_format", float_fmt)
 
@@ -58,7 +54,7 @@ def get_num_hashes(num_bits: int):
     return 2**num_bits
 
 #%%
-# 2. `gen_edge()` memory use and random work, modeled using `S`, the base mem size, `m`, the maximum number of random read operations on the buffer, and `p`, the average number of uint64 read operations on it. This buffer is designed to fit and stay in a CPU L1 cache during graph gen, and be too large to fit in GPU registers. Random edges also depend on co-edges to serialize and decoalesce GPU warps even more, but the model ignores those for simplicity.
+# 2. `gen_edge()` memory use and random work, modeled using `S`, the base mem size, `m`, the maximum number of random read operations on the buffer, and `p`, the mean number of uint64 read operations on it. This buffer is designed to fit and stay in a CPU L1 cache during graph gen, and be too large to fit in GPU registers at mid/hard levels. Random edges also depend on co-edges to serialize and decoalesce GPU warps even more. The model ignores those for simplicity.
 #
 # 3. The graph size, modeled by `n` and `d`. These dictate the maximum number of graph nodes (`N = 2^n`) and the exact number of edges (`E = d * 2^n`), so affects graph generation and traversal speed. The actual number of nodes is close enough to the maximum for small densities so we treat it as equal.
 #%%
@@ -96,7 +92,6 @@ def get_num_edges(density: float, graph_size: int):
 def get_num_graphs(num_bits: int, graph_size: int, density: float):
     return 2**(num_bits + graph_size) / density**15
 
-# Not used, defined for early-tuning
 def get_density(num_bits: int, graph_size: int, num_graphs: float):
     return (2**(num_bits + graph_size) / num_graphs)**(1/15)
 
@@ -127,6 +122,7 @@ def get_density(num_bits: int, graph_size: int, num_graphs: float):
 KB = 1_024
 MB = 1_048_576
 GB = 1_073_741_824
+GiB_s = 1_000_000_000
 
 PROFILES = {
     "phone_mid": {
@@ -135,6 +131,10 @@ PROFILES = {
         "L2": 256 * KB,
         "L3": 2 * MB,
         "RAM": 1 * GB,
+        "L3_rand": 10 * GiB_s,
+        "RAM_rand": 1 * GiB_s,
+        "L3_agg": 80 * GiB_s,
+        "RAM_agg": 10 * GiB_s,
     },
     "phone_high": {
         "cores": 8,
@@ -142,63 +142,114 @@ PROFILES = {
         "L2": 512 * KB,
         "L3": 8 * MB,
         "RAM": 1 * GB,
+        "L3_rand": 12 * GiB_s,
+        "RAM_rand": 1.5 * GiB_s,
+        "L3_agg": 160 * GiB_s,
+        "RAM_agg": 20 * GiB_s,
     },
-    "server": {
-        "cores": 64,
+    "server_shared": {
+        "cores": 8,
+        "L1": 32 * KB,
+        "L2": 256 * KB,
+        "L3": 4 * MB,
+        "RAM": 8 * GB,
+        "L3_rand": 6 * GiB_s,
+        "RAM_rand": 0.8 * GiB_s,
+        "L3_agg": 40 * GiB_s,
+        "RAM_agg": 8 * GiB_s,
+    },
+    "server_dedicated": {
+        "cores": 128,
         "L1": 32 * KB,
         "L2": 1 * MB,
-        "L3": 256 * MB,
-        "RAM": 256 * GB,
+        "L3": 512 * MB,
+        "RAM": 512 * GB,
+        "L3_rand": 20 * GiB_s,
+        "RAM_rand": 2 * GiB_s,
+        "L3_agg": 2_400 * GiB_s,
+        "RAM_agg": 300 * GiB_s,
     }
 }
 
 def L1_seq_write_ms(bytes: int, profile: str):
     cores = PROFILES[profile]["cores"]
-    return bytes / (32_000_000 * cores)
+    return bytes / (32 * GiB_s * cores / 1000)
 
 def L1_rand_read_ms(bytes: int, profile: str):
     cores = PROFILES[profile]["cores"]
-    return bytes / (8_000_000 * cores)
+    return bytes / (8 * GiB_s * cores / 1000)
 
 def L1_rand_write_ms(bytes: int, profile: str):
     cores = PROFILES[profile]["cores"]
-    return bytes / (6_000_000 * cores)
+    return bytes / (6 * GiB_s * cores / 1000)
 
 def L2_seq_read_ms(bytes: int, profile: str):
     cores = PROFILES[profile]["cores"]
-    return bytes / (16_000_000 * cores)
+    return bytes / (16 * GiB_s * cores / 1000)
 
 def L2_rand_read_ms(bytes: int, profile: str):
     cores = PROFILES[profile]["cores"]
-    return bytes / (2_000_000 * cores)
+    return bytes / (2 * GiB_s * cores / 1000)
 
 def L2_rand_write_ms(bytes: int, profile: str):
     cores = PROFILES[profile]["cores"]
-    return bytes / (1_500_000 * cores)
+    return bytes / (1.5 * GiB_s * cores / 1000)
 
 def L3_seq_read_ms(bytes: int, profile: str):
+    rand_bw = 2 * PROFILES[profile]["L3_rand"]
+    agg_bw = PROFILES[profile]["L3_agg"]
     cores = PROFILES[profile]["cores"]
-    return bytes / (8_000_000 * cores)
+    bw = min(rand_bw * cores, agg_bw) / 1000
+    return bytes / bw
 
 def L3_seq_write_ms(bytes: int, profile: str):
+    rand_bw = 1.5 * PROFILES[profile]["L3_rand"]
+    agg_bw = PROFILES[profile]["L3_agg"]
     cores = PROFILES[profile]["cores"]
-    return bytes / (6_000_000 * cores)
+    bw = min(rand_bw * cores, agg_bw) / 1000
+    return bytes / bw
 
 def L3_rand_read_ms(bytes: int, profile: str):
+    rand_bw = PROFILES[profile]["L3_rand"]
+    agg_bw = PROFILES[profile]["L3_agg"]
     cores = PROFILES[profile]["cores"]
-    return bytes / (600_000 * cores)
+    bw = min(rand_bw * cores, agg_bw) / 1000
+    return bytes / bw
 
 def L3_rand_write_ms(bytes: int, profile: str):
+    rand_bw = .75 * PROFILES[profile]["L3_rand"]
+    agg_bw = PROFILES[profile]["L3_agg"]
     cores = PROFILES[profile]["cores"]
-    return bytes / (450_000 * cores)
+    bw = min(rand_bw * cores, agg_bw) / 1000
+    return bytes / bw
+
+def RAM_seq_read_ms(bytes: int, profile: str):
+    rand_bw = 1.5 * PROFILES[profile]["RAM_rand"]
+    agg_bw = PROFILES[profile]["RAM_agg"]
+    cores = PROFILES[profile]["cores"]
+    bw = min(rand_bw * cores, agg_bw) / 1000
+    return bytes / bw
+
+def RAM_seq_write_ms(bytes: int, profile: str):
+    rand_bw = 1.125 * PROFILES[profile]["RAM_rand"]
+    agg_bw = PROFILES[profile]["RAM_agg"]
+    cores = PROFILES[profile]["cores"]
+    bw = min(rand_bw * cores, agg_bw) / 1000
+    return bytes / bw
 
 def RAM_rand_read_ms(bytes: int, profile: str):
+    rand_bw = PROFILES[profile]["RAM_rand"]
+    agg_bw = PROFILES[profile]["RAM_agg"]
     cores = PROFILES[profile]["cores"]
-    return bytes / (200_000 * cores)
+    bw = min(rand_bw * cores, agg_bw) / 1000
+    return bytes / bw
 
 def RAM_rand_write_ms(bytes: int, profile: str):
+    rand_bw = .75 * PROFILES[profile]["RAM_rand"]
+    agg_bw = PROFILES[profile]["RAM_agg"]
     cores = PROFILES[profile]["cores"]
-    return bytes / (150_000 * cores)
+    bw = min(rand_bw * cores, agg_bw) / 1000
+    return bytes / bw
 
 def priv_rand_read_ms(bytes: int, working_set_bytes: int, profile: str):
     if working_set_bytes <= PROFILES[profile]["L1"]:
@@ -291,7 +342,7 @@ def get_graph_writes_ms(bytes: int, profile: str):
     return shared_rand_write_ms(bytes, bytes, profile)
 
 #%%
-# In addition to this, generating each edge requires making up to `m` random reads of a buffer of size `s` into L1. It gets reused as is from an edge gen call to the next, so it will almost certainly reside in L2 if it gets evicted from L1---which it should not. We need to add an average of `p * 64` bytes of extra L1+ read traffic, and an equivalent amount of writes for the intermediary results as the computation moves forward.
+# In addition to this, generating each edge requires making up to `m` random reads of a buffer of size `s` into L1. It gets reused as is from an edge gen call to the next, so it will almost certainly reside in L2 if it gets evicted from L1---which it should not. We need to add a mean of `p * 64` bytes of extra L1+ read traffic, and an equivalent amount of writes for the intermediary results as the computation moves forward.
 #
 # The total edge gen L1+ random read and write traffic (with the two counted separately) is thus:
 #
@@ -300,14 +351,14 @@ def get_graph_writes_ms(bytes: int, profile: str):
 # Where this actually lives depends on the maximum number of copies m.
 #%%
 
-def get_buffer_bytes(avg_ops: float, density: float, graph_size: int):
-    return 64 * avg_ops * density * 2**graph_size
+def get_buffer_bytes(mean_ops: float, density: float, graph_size: int):
+    return 64 * mean_ops * density * 2**graph_size
 
 def get_buffer_read_ms(bytes: int, profile: str):
     return L1_rand_read_ms(bytes, profile)
 
 def get_buffer_write_ms(bytes: int, profile: str):
-    return L1_seq_write_ms(bytes, profile)
+    return L1_rand_write_ms(bytes, profile)
 
 #%%
 # ### Path Expansions
@@ -324,8 +375,11 @@ def get_buffer_write_ms(bytes: int, profile: str):
 #     256 * (d^8 + d^7 - 2) / (d - 1)
 #%%
 
-def get_graph_reads_bytes(density: float):
-    return math.ceil(256 * (density**8 + density**7 - 2) / (density - 1))
+def get_forward_reads_bytes(density: float):
+    return math.ceil(256 * (density**7 - 1) / (density - 1))
+
+def get_backward_reads_bytes(density: float):
+    return math.ceil(256 * (density**8 - 1) / (density - 1))
 
 def get_graph_reads_ms(reads_bytes: int, graph_bytes: int, profile: str):
     return shared_rand_read_ms(reads_bytes, graph_bytes, profile)
@@ -405,7 +459,7 @@ def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, profi
     density     = d
     buffer      = s
     max_ops     = m
-    avg_ops     = p
+    mean_ops     = p
 
     num_hashes  = get_num_hashes(num_bits)
     num_nodes   = get_num_nodes(graph_size)
@@ -414,27 +468,34 @@ def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, profi
 
     full_graphs = math.ceil(num_graphs)
 
-    ops_bytes           = get_buffer_bytes(avg_ops, density, graph_size)
+    ops_bytes           = get_buffer_bytes(mean_ops, density, graph_size)
     ops_ms              = get_buffer_read_ms(ops_bytes, profile) \
                         + get_buffer_write_ms(ops_bytes, profile)
 
     graph_bytes         = get_graph_writes_bytes(density, graph_size)
     graph_writes_ms     = get_graph_writes_ms(graph_bytes, profile)
 
-    graph_reads_bytes   = get_graph_reads_bytes(density)
+    forward_reads_bytes   = get_forward_reads_bytes(density)
     filter_bytes        = get_filter_writes_bytes(density)
+    backward_reads_bytes   = get_backward_reads_bytes(density)
     filter_reads_bytes  = get_filter_reads_bytes(density, graph_size)
 
     total_bytes         = graph_bytes + filter_bytes
 
-    graph_reads_ms      = get_graph_reads_ms(graph_reads_bytes, total_bytes, profile)
+    forward_reads_ms      = get_graph_reads_ms(forward_reads_bytes, total_bytes, profile)
+    backward_reads_ms      = get_graph_reads_ms(backward_reads_bytes, total_bytes, profile)
     filter_writes_ms    = get_filter_writes_ms(filter_bytes, profile)
     filter_reads_ms     = get_filter_reads_ms(filter_reads_bytes, filter_bytes, profile)
 
-    gen_ms      = ops_ms + graph_writes_ms
-    search_ms   = graph_reads_ms + filter_writes_ms + filter_reads_ms
+    build_ms    = full_graphs * (ops_ms + graph_writes_ms)
+    filter_ms   = full_graphs * (forward_reads_ms + filter_writes_ms)
+    join_ms     = num_graphs * (backward_reads_ms + filter_reads_ms)
     hash_ms     = get_hash_ms(num_hashes, profile)
-    total_ms    = hash_ms + full_graphs * (gen_ms + search_ms)
+    total_ms    = build_ms + filter_ms + join_ms + hash_ms
+
+    total_writes_bytes = full_graphs * (graph_bytes + filter_bytes)
+    total_reads_bytes = (full_graphs * (ops_bytes + forward_reads_bytes)
+                    + num_graphs * (backward_reads_bytes + filter_reads_bytes))
 
     yield {
         "level": level,
@@ -450,7 +511,7 @@ def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, profi
 
         "buffer": buffer,
         "max_ops": max_ops,
-        "avg_ops": avg_ops,
+        "mean_ops": mean_ops,
 
         "ops_bytes": ops_bytes,
         "ops_bytes_mb": mb(ops_bytes),
@@ -460,84 +521,99 @@ def gen_record(l: int, b: int, n: int, d: float, s: int, m: int, p: float, profi
         "graph_bytes_mb": mb(graph_bytes),
         "graph_writes_ms": graph_writes_ms,
 
-        "graph_reads_bytes": graph_reads_bytes,
-        "graph_reads_bytes_mb": mb(graph_reads_bytes),
-        "graph_reads_ms": graph_reads_ms,
+        "forward_reads_bytes": forward_reads_bytes,
+        "forward_reads_bytes_mb": mb(forward_reads_bytes),
+        "forward_reads_ms": forward_reads_ms,
 
         "filter_bytes": filter_bytes,
         "filter_bytes_mb": mb(filter_bytes),
         "filter_writes_ms": filter_writes_ms,
 
+        "backward_reads_bytes": backward_reads_bytes,
+        "backward_reads_bytes_mb": mb(backward_reads_bytes),
+        "backward_reads_ms": backward_reads_ms,
+
         "filter_reads_bytes": filter_reads_bytes,
         "filter_reads_bytes_mb": mb(filter_reads_bytes),
         "filter_reads_ms": filter_reads_ms,
 
-        "gen_ms": gen_ms,
-        "search_ms": search_ms,
+        "build_ms": build_ms,
+        "filter_ms": filter_ms,
+        "join_ms": join_ms,
         "hash_ms": hash_ms,
 
+        "total_writes_bytes": total_writes_bytes,
+        "total_writes_bytes_mb": mb(total_writes_bytes),
+        "total_reads_bytes": total_reads_bytes,
+        "total_reads_bytes_mb": mb(total_reads_bytes),
         "total_ms": total_ms,
     }
 
 def gen_all_records(bracket: range, profile: str):
-    level_brackets = {}
+    level_values = {}
     for level in range(16):
-        level_brackets[level] = {
-            "num_bits_range": [
-                9 + math.floor(level / 2)
+        level_values[level] = {
+            "num_bits": [
+                12 + math.ceil(8 * math.sqrt(level / 15))
             ],
-            "graph_size_range": [
-                16 + math.ceil(level / 4)
+            "graph_size": [
+                8 + math.ceil(12 * math.sqrt(level / 15))
             ],
-            "density_range": [
-                3.5 + level / 10
+            "num_graphs": [
+                .1 * .8**(level)
             ],
-            "buffer_range": [
-                256 * 2**math.ceil((level + 1) / 4)
+            "buffer": [
+                128 * 2**math.ceil(level / 8)
             ],
-            "max_ops_range": [
-                2**math.ceil((level - 1) / 2)
+            "max_ops": [
+                2**math.floor(level / 2)
             ],
+            "mean_ops" : [
+                math.ceil((level + 1) / 4)
+                # 1 + math.ceil(math.sqrt(level))
+            ]
         }
 
-    for level, ranges in level_brackets.items():
+    for level, values in level_values.items():
         if level not in bracket:
             continue
-        for l, b, n, d, s, m in product(
+        for l, b, n, g, s, m, p in product(
             {level},
-            set(ranges["num_bits_range"]),
-            set(ranges["graph_size_range"]),
-            set(ranges["density_range"]),
-            set(ranges["buffer_range"]),
-            set(ranges["max_ops_range"]),
+            set(values["num_bits"]),
+            set(values["graph_size"]),
+            set(values["num_graphs"]),
+            set(values["buffer"]),
+            set(values["max_ops"]),
+            set(values["mean_ops"]),
         ):
-            n = 12
-            d = get_density(b, n, .1 * .8**l)
-            p = (1 + m) / 2
-            # m = 1
+            d = get_density(b, n, g)
             # p = 1
             yield from gen_record(l, b, n, d, s, m, p, profile)
 
 
 params = [
     "level", "num_bits", "graph_size", "density", "num_graphs",
-    # "buffer", "max_ops",
-    "avg_ops",
+    "buffer", "max_ops", "mean_ops",
     # "num_nodes", "num_edges",
     # "num_hashes",
 ]
 components = [
     # "max_bytes",
-    "ops_bytes_mb",
-    "graph_bytes_mb", "filter_bytes_mb",
-    "graph_reads_bytes_mb", "filter_reads_bytes_mb",
-    "gen_ms", "search_ms", "hash_ms", "total_ms"
+    # "ops_bytes_mb",
+    "graph_bytes_mb",
+    "filter_bytes_mb",
+    "forward_reads_bytes_mb",
+    "filter_reads_bytes_mb", "backward_reads_bytes_mb",
+    "build_ms", "filter_ms", "join_ms", "hash_ms",
+    "total_writes_bytes_mb", "total_reads_bytes_mb",
+    "total_ms"
 ]
 
 df = pd.DataFrame(gen_all_records(range(16),
     "phone_mid"
     # "phone_high"
-    # "server"
+    # "server_shared"
+    # "server_dedicated"
 ))
 df = df[params + components]
 df = df.sort_values(by=["level"], ascending=[True]) # type: ignore
