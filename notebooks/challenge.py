@@ -554,10 +554,10 @@ def gen_all_records(bracket: range, profile: str):
     for level in range(16):
         level_values[level] = {
             "num_bits": [
-                12 + math.ceil(8 * math.sqrt(level / 15))
+                12 + math.ceil(8 * (level / 15)**.2)
             ],
             "graph_size": [
-                8 + math.ceil(12 * math.sqrt(level / 15))
+                8 + math.ceil(12 * (level / 15)**.2)
             ],
             "num_graphs": [
                 .1 * .8**(level)
